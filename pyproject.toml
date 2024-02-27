@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "setuptools-scm>=8.0"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cit-pydata"
-dynamic = ["version"]
+version = "0.0.1"
 authors = [
   { name="Dionis Wang", email="dwang@eab.com" },
 ]
@@ -16,7 +16,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
 ]
-[tool.setuptools_scm]
 [project.urls]
 Homepage = "https://github.com/EAB-IT-DEV/cit-pydata"
 Issues = "https://github.com/EAB-IT-DEV/cit-pydata/issues"
