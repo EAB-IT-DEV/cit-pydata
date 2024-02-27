@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cit-pydata"
+dynamic = ["version"]
+authors = [
+  { name="Dionis Wang", email="dwang@eab.com" },
+]
+description = "Python clients for commonly used api services including Salesforce, SQL, Marketo, Box, SFSync*, and JobLog*"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+]
+[tool.setuptools_scm]
+[project.urls]
+Homepage = "https://github.com/EAB-IT-DEV/cit-pydata"
+Issues = "https://github.com/EAB-IT-DEV/cit-pydata/issues"
+
+[project.optional-dependencies]
+aws = ["boto3", "pandas"]
+box = ["boxsdk", "simple_salesforce"]
+joblog = ["marketorestpython"]
+salesforce = ["simple_salesforce","pyforce"]
+sftp = ["paramiko"]
+sql-mssql = ["pyodbc","pymssql", "numpy", "pandas"]
+sql-postgres = ["psycopg2-binary", "numpy", "pandas"]
+local = ["python-dotenv"]
