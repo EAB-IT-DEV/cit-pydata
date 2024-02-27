@@ -1,6 +1,7 @@
 ## Project Based
 
 ## Data Files
+dist/
 files/*
 files
 logs/*
