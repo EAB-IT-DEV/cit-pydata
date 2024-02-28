@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cit-pydata"
-version = "0.0.3"
+version = "alpha-0.0.1"
 authors = [
   { name="Dionis Wang", email="dwang@eab.com" },
 ]
@@ -26,6 +26,6 @@ box = ["boxsdk", "simple_salesforce"]
 joblog = ["marketorestpython"]
 salesforce = ["simple_salesforce","pyforce"]
 sftp = ["paramiko"]
-sql-mssql = ["pyodbc","pymssql", "numpy", "pandas"]
-sql-postgres = ["psycopg2-binary", "numpy", "pandas"]
+sql-mssql = ["SQLAlchemy==1.4.25", "pyodbc","pymssql", "numpy", "pandas"]
+sql-postgres = ["SQLAlchemy==1.4.25", "psycopg2-binary==2.9.6", "numpy", "pandas"]
 local = ["python-dotenv"]
