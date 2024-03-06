@@ -1,6 +1,7 @@
 ## Project Based
 
 ## Data Files
+build/
 dist/
 files/*
 files
