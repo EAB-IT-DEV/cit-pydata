@@ -2,9 +2,28 @@ import os
 import sys
 
 import datetime
+from contextlib import contextmanager
 
 PATH_TO_ENV = os.path.join(os.getcwd(), ".env")
 ON_AWS = os.getenv("AWS_EXECUTION_ENV")
+
+
+@contextmanager
+def try_import(logger=None, error: str = "ignore"):
+    assert error in {"raise", "warn", "ignore"}
+    try:
+        yield None
+    except ImportError as e:
+        if error == "raise":
+            raise e
+        if error == "warn":
+            msg = (
+                f'Missing optional dependency "{e.name}". Use pip or conda to install.'
+            )
+            if logger:
+                logger.warn(msg)
+            else:
+                print(f"WARNING: {msg}")
 
 
 def encode_base64(value: str):
