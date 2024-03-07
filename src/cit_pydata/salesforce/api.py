@@ -57,7 +57,7 @@ class SalesforceClient:
         Returns dictionary of OAuth acces_token and instance_url for Salesforce Rest API
         {
             'access_token': 'zzzzz',
-            'instance_url': 'https://eab--catalyst.my.salesforce.com',
+            'instance_url': 'https://sf--catalyst.my.salesforce.com',
             'id': 'https://test.salesforce.com/id/00D040100004eqgBAL/0052K00000Aox3CZAR',
             'token_type': 'Bearer', 'issued_at': '1629746368808',
             'signature': 'zzz'
@@ -444,6 +444,9 @@ class SalesforceSOAPClient:
 
         # Handle logger
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
+        self.base_ssm_parameter_name = conn.get(
+            "base_ssm_parameter_name"
+        )  # "/eab-pydata/salesforce/"
 
         # Handle connection details
         self.instance = conn.get("instance", None)
@@ -478,7 +481,7 @@ class SalesforceSOAPClient:
         Returns dictionary of OAuth acces_token and instance_url for Salesforce Rest API
         {
             'access_token': 'zzzzz',
-            'instance_url': 'https://eab--catalyst.my.salesforce.com',
+            'instance_url': 'https://sf--catalyst.my.salesforce.com',
             'id': 'https://test.salesforce.com/id/00D040000004eqgEAA/0052K00000Aox6CQAR',
             'token_type': 'Bearer', 'issued_at': '1629746368808',
             'signature': 'zzz'
@@ -496,15 +499,22 @@ class SalesforceSOAPClient:
             except Exception as e:
                 self.logger.exception(e)
 
-            base_ssm_parameter_name = "/eab-pydata/salesforce/"
             sf_username_parameter_name = (
-                base_ssm_parameter_name + self.instance + "/" + self.user + "/username"
+                self.base_ssm_parameter_name
+                + self.instance
+                + "/"
+                + self.user
+                + "/username"
             )
             sf_password_parameter_name = (
-                base_ssm_parameter_name + self.instance + "/" + self.user + "/password"
+                self.base_ssm_parameter_name
+                + self.instance
+                + "/"
+                + self.user
+                + "/password"
             )
             sf_client_id_parameter_name = (
-                base_ssm_parameter_name
+                self.base_ssm_parameter_name
                 + self.instance
                 + "/app/"
                 + self.app

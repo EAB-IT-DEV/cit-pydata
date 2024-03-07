@@ -8,7 +8,7 @@ from cit_pydata.aws import api as aws_api
 class MarketoClient:
     def __init__(self, conn: dict, logger=None):
         """
-        EAB Custom Marketo Client for all Marketo API needs.
+        Custom Marketo Client for all Marketo API needs.
         Exposes the package MarketoRestPython via the member "marketo"
         conn = {
             'instance':'production'|'sandbox',
@@ -17,6 +17,9 @@ class MarketoClient:
         """
 
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
+        self.base_ssm_parameter_name = conn.get(
+            "base_ssm_parameter_name"
+        )  # "/eab-pydata/marketo/"
 
         # Handle connection details
         self.instance = conn.get("instance", None)
@@ -55,19 +58,18 @@ class MarketoClient:
             except Exception as e:
                 self.logger.exception(e)
 
-            base_ssm_parameter_name = "/eab-pydata/marketo/"
             marketo_munchkin_id_parameter_name = (
-                base_ssm_parameter_name + self.instance + "/munchkin_id"
+                self.base_ssm_parameter_name + self.instance + "/munchkin_id"
             )
             marketo_client_id_parameter_name = (
-                base_ssm_parameter_name
+                self.base_ssm_parameter_name
                 + self.instance
                 + "/app/"
                 + self.app
                 + "/client_id"
             )
             marketo_client_secret_parameter_name = (
-                base_ssm_parameter_name
+                self.base_ssm_parameter_name
                 + self.instance
                 + "/app/"
                 + self.app

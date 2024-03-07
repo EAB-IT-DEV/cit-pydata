@@ -28,6 +28,9 @@ class SFTPClient:
         """
         # Handle logger
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
+        self.base_ssm_parameter_name = conn.get(
+            "base_ssm_parameter_name"
+        )  # "/eab-pydata/sftp/"
 
         # Handle connection details
         self.instance = conn.get("instance", None)
@@ -62,13 +65,14 @@ class SFTPClient:
             self.logger.exception(e)
             return False
 
-        base_ssm_parameter_name = "/eab-pydata/sftp/"
-        sftp_hostname_parameter_name = base_ssm_parameter_name + self.instance + "/host"
+        sftp_hostname_parameter_name = (
+            self.base_ssm_parameter_name + self.instance + "/host"
+        )
         sftp_username_parameter_name = (
-            base_ssm_parameter_name + self.instance + "/username"
+            self.base_ssm_parameter_name + self.instance + "/username"
         )
         sftp_password_parameter_name = (
-            base_ssm_parameter_name + self.instance + "/password"
+            self.base_ssm_parameter_name + self.instance + "/password"
         )
 
         """"""

@@ -5,9 +5,9 @@ from cit_pydata.util import ON_AWS
 
 
 def _get_boto_session(
-    service,
-    environment,
-    iam_user,
+    service=None,
+    environment=None,
+    iam_user=None,
     path_to_env_file=None,
     region=None,
     logger=util_api.get_logger(__name__, "info"),
@@ -67,7 +67,9 @@ def _get_boto_session(
 
 
 class S3Client:
-    def __init__(self, environment, iam_user, path_to_env_file, log_level="info"):
+    def __init__(
+        self, environment=None, iam_user=None, path_to_env_file=None, log_level="info"
+    ):
         self.logger = util_api.get_logger(__name__, log_level)
         environment = environment.lower()
 
@@ -136,8 +138,8 @@ class S3Client:
 class SSMClient:
     def __init__(
         self,
-        environment,
-        iam_user,
+        environment=None,
+        iam_user=None,
         path_to_env_file=None,
         log_level="info",
         logger=None,

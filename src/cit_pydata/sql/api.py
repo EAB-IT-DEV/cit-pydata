@@ -33,6 +33,9 @@ class SQLClient:
 
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
 
+        self.base_ssm_parameter_name = conn.get(
+            "base_ssm_parameter_name"
+        )  # "/eab-pydata/sql/"
         self.sql_hostname = conn.get("sql_hostname", None)
         self.sql_instance = conn.get("sql_instance", None)
         self.sql_user = conn.get("sql_user", None)
@@ -62,14 +65,13 @@ class SQLClient:
         try:
             _aws_environment = None
             _aws_iam_user = None
-            if not ON_AWS:
-                _aws_environment = util_api.get_environment_variable(
-                    logger=self.logger, variable_name="aws_auth_environment"
-                )
+            _aws_environment = util_api.get_environment_variable(
+                logger=self.logger, variable_name="aws_auth_environment"
+            )
 
-                _aws_iam_user = util_api.get_environment_variable(
-                    logger=self.logger, variable_name="aws_auth_iam_user"
-                )
+            _aws_iam_user = util_api.get_environment_variable(
+                logger=self.logger, variable_name="aws_auth_iam_user"
+            )
 
             aws_ssm_client = aws_api.SSMClient(
                 environment=_aws_environment, iam_user=_aws_iam_user
@@ -78,10 +80,9 @@ class SQLClient:
         except Exception as e:
             self.logger.exception(e)
 
-        base_ssm_parameter_name = "/eab-pydata/sql/"
         if self.sql_instance:
             sql_password_parameter_name = (
-                base_ssm_parameter_name
+                self.base_ssm_parameter_name
                 + self.sql_hostname
                 + "/"
                 + self.sql_instance
@@ -90,7 +91,7 @@ class SQLClient:
             )
         else:
             sql_password_parameter_name = (
-                base_ssm_parameter_name + self.sql_hostname + "/" + self.sql_user
+                self.base_ssm_parameter_name + self.sql_hostname + "/" + self.sql_user
             )
 
         sql_password = None

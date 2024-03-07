@@ -125,7 +125,9 @@ def get_environment_variable(
         logger = get_logger()
 
     if ON_AWS and variable_name.startswith("aws"):
-        logger.info(f"Detected on AWS. Skipping AWS .env variable {variable_name}")
+        logger.info(
+            f"Detected on AWS. Skipping retrieval of AWS .env variable {variable_name}"
+        )
         return None
 
     if not "dotenv" in sys.modules:
