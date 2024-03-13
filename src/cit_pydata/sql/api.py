@@ -33,9 +33,7 @@ class SQLClient:
 
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
 
-        self.base_ssm_parameter_name = conn.get(
-            "base_ssm_parameter_name"
-        )  # "/eab-pydata/sql/"
+        self.base_ssm_parameter_name = conn.get("base_ssm_parameter_name")
         self.sql_hostname = conn.get("sql_hostname", None)
         self.sql_instance = conn.get("sql_instance", None)
         self.sql_user = conn.get("sql_user", None)

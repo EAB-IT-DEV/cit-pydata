@@ -12,7 +12,7 @@ def get_field_value_from_relationship_lookup(lookup_dict, field_api_name):
 
 
 class SalesforceClient:
-    def __init__(self, conn, logger=None):
+    def __init__(self, conn: dict, logger=None):
         """
         conn = {
             'instance':'sf instance name',
@@ -23,6 +23,8 @@ class SalesforceClient:
 
         # Handle logger
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
+
+        self.base_ssm_parameter_name = conn.get("base_ssm_parameter_name")
 
         # Handle connection details
         self.instance = conn.get("instance", None)
@@ -73,29 +75,36 @@ class SalesforceClient:
             except Exception as e:
                 self.logger.exception(e)
 
-            base_ssm_parameter_name = "/eab-pydata/salesforce/"
             sf_username_parameter_name = (
-                base_ssm_parameter_name + self.instance + "/" + self.user + "/username"
+                self.base_ssm_parameter_name
+                + self.instance
+                + "/"
+                + self.user
+                + "/username"
             )
             sf_password_parameter_name = (
-                base_ssm_parameter_name + self.instance + "/" + self.user + "/password"
+                self.base_ssm_parameter_name
+                + self.instance
+                + "/"
+                + self.user
+                + "/password"
             )
             sf_security_token_parameter_name = (
-                base_ssm_parameter_name
+                self.base_ssm_parameter_name
                 + self.instance
                 + "/"
                 + self.user
                 + "/security_token"
             )
             sf_client_id_parameter_name = (
-                base_ssm_parameter_name
+                self.base_ssm_parameter_name
                 + self.instance
                 + "/app/"
                 + self.app
                 + "/client_id"
             )
             sf_client_secret_parameter_name = (
-                base_ssm_parameter_name
+                self.base_ssm_parameter_name
                 + self.instance
                 + "/app/"
                 + self.app
@@ -444,9 +453,7 @@ class SalesforceSOAPClient:
 
         # Handle logger
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
-        self.base_ssm_parameter_name = conn.get(
-            "base_ssm_parameter_name"
-        )  # "/eab-pydata/salesforce/"
+        self.base_ssm_parameter_name = conn.get("base_ssm_parameter_name")
 
         # Handle connection details
         self.instance = conn.get("instance", None)
@@ -521,7 +528,7 @@ class SalesforceSOAPClient:
                 + "/client_id"
             )
             sf_client_secret_parameter_name = (
-                base_ssm_parameter_name
+                self.base_ssm_parameter_name
                 + self.instance
                 + "/app/"
                 + self.app

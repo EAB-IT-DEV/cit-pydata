@@ -17,9 +17,7 @@ class MarketoClient:
         """
 
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
-        self.base_ssm_parameter_name = conn.get(
-            "base_ssm_parameter_name"
-        )  # "/eab-pydata/marketo/"
+        self.base_ssm_parameter_name = conn.get("base_ssm_parameter_name")
 
         # Handle connection details
         self.instance = conn.get("instance", None)

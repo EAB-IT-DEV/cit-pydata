@@ -1,16 +1,3 @@
-""" ------------------------------------------------------------------------------------------------------------------------------------
-NAME : SFTP API
-AUTHOR : Syrine Mefteh
-EDITOR : Andrew Fitch
-CREATED : 2023-11-10
-DEPLOYED: 2023-11-13
-DESCRIPTION :
-    Used for connecting to an SFTP server using credentials on the AWS Server
-    Once connected, you can use these methods to load a file onto the SFTP
-    Or, you can use the SFTP Session and write your own functions locally, referring to the paramiko documentation:
-        https://docs.paramiko.org/en/3.3/api/sftp.html
------------------------------------------------------------------------------------------------------------------------------------------ """
-
 import os
 import sys
 
@@ -19,7 +6,7 @@ from cit_pydata.aws import api as aws_api
 
 
 class SFTPClient:
-    def __init__(self, conn, logger=None):
+    def __init__(self, conn: dict, logger=None):
         """
         conn = {
             'instance': 'sftp instance name', #e.g. 'getpaid'
@@ -28,9 +15,7 @@ class SFTPClient:
         """
         # Handle logger
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
-        self.base_ssm_parameter_name = conn.get(
-            "base_ssm_parameter_name"
-        )  # "/eab-pydata/sftp/"
+        self.base_ssm_parameter_name = conn.get("base_ssm_parameter_name")
 
         # Handle connection details
         self.instance = conn.get("instance", None)
