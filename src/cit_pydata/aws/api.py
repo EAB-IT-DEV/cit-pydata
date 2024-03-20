@@ -27,7 +27,7 @@ def _get_boto_session(
 
     if aws_access_key_id is None:
         logger.error(f"Access Key Id does not exist for environment {environment}")
-        sys.exit(1)
+        return
 
     _environment_variable = environment + "_" + iam_user + "_" + "aws_secret_access_key"
     aws_secret_access_key = util_api.get_environment_variable(
@@ -38,7 +38,7 @@ def _get_boto_session(
 
     if aws_secret_access_key is None:
         logger.error(f"Secret Key not specified for environment {environment}")
-        sys.exit(1)
+        return
 
     _aws_region = region
     if _aws_region is None:
@@ -51,7 +51,7 @@ def _get_boto_session(
 
     if _aws_region is None:
         logger.error(f"AWS Region not specified for environment {environment}")
-        sys.exit(1)
+        return
 
     _session = boto3.Session(
         aws_access_key_id=aws_access_key_id,
@@ -166,7 +166,7 @@ class SSMClient:
 
         if value is None:
             self.logger.error(f'SSM Parameter not found "{name}"')
-            sys.exit(1)
+            return
 
         if is_verbose:
             return value

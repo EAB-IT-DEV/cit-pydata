@@ -120,19 +120,19 @@ class SFTPClient:
                 f"Authentication failed for the {self.instance} SFTP Server: {auth_exception}"
             )
             return False
-            # sys.exit(1)
+            # return
 
         except paramiko.SSHException as ssh_exception:
             self.logger.error(
                 f"SSH error occurred while connecting to the {self.instance} SFTP server: {ssh_exception}"
             )
             return False
-            # sys.exit(1)
+            # return
 
         except Exception as e:
             self.logger.error(f"An error occurred: {e}")
             return False
-            # sys.exit(1)
+            # return
 
         return True
 

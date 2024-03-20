@@ -192,7 +192,7 @@ class SalesforceClient:
                     self.logger.error(e)
                     self.logger.error(r.json())
                     self.logger.error(f"Failed to authenticate to Salesforce")
-                    os.
+                    sys.exit(1)
                 json_response = r.json()
             # self.logger.debug(json_response)
 
@@ -272,7 +272,7 @@ class SalesforceClient:
             ssf_object = getattr(self.ssf, object_api_name)
         else:
             self.logger.debug(f"Error: object does not exist {object_api_name}")
-            
+            sys.exit(1)
 
         sf_object_result = ssf_object.get(record_id)
 
@@ -594,7 +594,7 @@ class SalesforceSOAPClient:
                 svc.login(sf_username, sf_password)
             except Exception as e:
                 self.logger.error(f"Failed to authenticate to Salesforce")
-                os.
+                sys.exit(1)
 
             return svc
 

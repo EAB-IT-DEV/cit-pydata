@@ -83,7 +83,7 @@ class MarketoClient:
                 self.logger.error(
                     f"Unable to get Munchkin Id from AWS SSM {marketo_munchkin_id_parameter_name}"
                 )
-                sys.exit(1)
+                return
 
             client_id = None
             try:
@@ -94,7 +94,7 @@ class MarketoClient:
                 self.logger.error(
                     f"Unable to get Marketo Client Id from AWS SSM {marketo_client_id_parameter_name}"
                 )
-                sys.exit(1)
+                return
 
             client_secret = None
             try:
@@ -105,7 +105,7 @@ class MarketoClient:
                 self.logger.error(
                     f"Unable to get Marketo Client Secret from AWS SSM {marketo_client_secret_parameter_name}"
                 )
-                sys.exit(1)
+                return
 
             api_limit = None
             max_retry_time = None
@@ -252,7 +252,7 @@ class MarketoClient:
                 self.logger.error(
                     f"Failed to get Marketo Custom Object records: {str(e)}"
                 )
-                sys.exit(1)
+                return
 
             if len(batch_result) > 0:
                 batch_df = pd.DataFrame(batch_result)
@@ -286,7 +286,7 @@ class MarketoClient:
         query = upsert_co_query_dict.get(custom_object_name, None)
         if query is None or query == "":
             self.logger.errror(f"Custom Object not supported {custom_object_name}")
-            sys.exit(1)
+            return
 
         self.logger.info(f"Executing SQL Query: {query}")
 
@@ -295,7 +295,7 @@ class MarketoClient:
             df = sql_client.get_dataframe_query(query)
         except Exception as e:
             self.logger.error(f"Failed to get SQL data: {str(e)}")
-            sys.exit(1)
+            return
 
         co_record_dict_list = df.to_dict("records")
         # self.logger.debug(records)
@@ -324,7 +324,7 @@ class MarketoClient:
             self.logger.debug(result)
         except Exception as e:
             self.logger.error(f'Failed to create CO recods" {str(e)}')
-            sys.exit(1)
+            return
 
         # save results
         save_file_name = f"{custom_object_name}_result_{date_time_string}.csv"
@@ -428,21 +428,21 @@ class MarketoClient:
 
         if co_query_dict is None:
             self.logger.error(f'Custom Object not supported: "{custom_object_name}"')
-            sys.exit(1)
+            return
 
         leads_wo_co_query = co_query_dict.get("leads_wo_co_query", None)
         if leads_wo_co_query is None:
             self.logger.error(
                 f'Query not configured for key {custom_object_name}["leads_wo_co_query"]'
             )
-            sys.exit(1)
+            return
 
         all_co_records_query = co_query_dict.get("all_co_records_query", None)
         if all_co_records_query is None:
             self.logger.error(
                 f'Query not configured for key {custom_object_name}["all_co_records_query"]'
             )
-            sys.exit(1)
+            return
 
         self.logger.info(
             f"Checking Custom Object {custom_object_name} for records to delete"
@@ -458,7 +458,7 @@ class MarketoClient:
             df = sql_client.get_dataframe_query(leads_wo_co_query)
         except Exception as e:
             self.logger.error(f"Failed to get SQL data: {str(e)}")
-            sys.exit(1)
+            return
 
         # if leads/contacts exist that do not have any CO records
         if df is not None and df.empty is False:
@@ -492,7 +492,7 @@ class MarketoClient:
             )
         except Exception as e:
             self.logger.error(f"Failed to get SQL data: {str(e)}")
-            sys.exit(1)
+            return
 
         if (
             all_source_co_records_df is not None

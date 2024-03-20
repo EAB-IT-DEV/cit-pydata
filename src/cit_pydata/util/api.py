@@ -142,7 +142,7 @@ def get_environment_variable(
 
     if not os.path.exists(_path_to_env_file):
         logger.error(f'environment file "{_path_to_env_file}" not found')
-        sys.exit(1)
+        return
 
     _envivironment_variable = variable_name.lower()
 

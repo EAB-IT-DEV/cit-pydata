@@ -106,7 +106,7 @@ class SQLClient:
             self.logger.error(
                 f"SQL authentication credential does not exist for server '{self.sql_hostname}' and user '{self.sql_user}'"
             )
-            sys.exit(1)
+            return
 
         engine_connection_string = None
 
