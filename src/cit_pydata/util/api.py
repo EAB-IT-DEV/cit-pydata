@@ -193,7 +193,7 @@ def get_logger(
         hours: float = ...,
         weeks: float =
     """
-    if not ON_AWS:
+    if not ON_AWS and log_type in ("console", "file"):
         import logging
 
         logger = logging.getLogger(logger_name)
@@ -381,13 +381,13 @@ def find_text_in_files(root_path, text_regex):
                 if re.search(".*\.py", this_file):
                     this_file_path = os.path.join(dirpath, this_file)
                     file_list.append(this_file_path)
-        # print(dirnames)
-        # print(filenames)
+        # self.logger.debug(dirnames)
+        # self.logger.debug(filenames)
 
     result_list = []
     for file_path in file_list:
         with open(file_path) as this_file:
-            # print(file_path)
+            # self.logger.debug(file_path)
             line_count = 0
             for line in this_file:
                 line_count += 1
@@ -400,7 +400,7 @@ def find_text_in_files(root_path, text_regex):
                     result_list.append(result)
 
     for item in result_list:
-        # print(item)
+        # self.logger.debug(item)
         pprint.pprint(item)
 
     print(f'Found {len(file_list)} references with regex "{text_regex}"')

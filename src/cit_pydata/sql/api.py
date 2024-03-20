@@ -122,7 +122,7 @@ class SQLClient:
                 engine_connection_string, fast_executemany=True
             )
         elif self.dialect == "psycopg2":
-            # print(self.ssh_tunnel_host, self.ssh_tunnel_port)
+            # self.logger.debug(self.ssh_tunnel_host, self.ssh_tunnel_port)
             if self.ssh_tunnel_host and self.ssh_tunnel_port:
                 engine_connection_string = f"postgresql+psycopg2://{self.sql_user}:{quote(sql_password)}@{self.ssh_tunnel_host}:{self.ssh_tunnel_port}/{self.sql_database}"
             else:
@@ -552,7 +552,7 @@ class SQLClient:
             self.logger.error(
                 f"Upsert not configured correctly. No columns provided for updating"
             )
-        # print(on_update_dict)
+        # self.logger.debug(on_update_dict)
         # build upsert statement for postgresql.
         on_conflict_statement = insert_statement.on_conflict_do_update(
             index_elements=upsert_id_index_elements, set_=on_update_dict
@@ -628,7 +628,7 @@ class SQLClient:
                 self.logger.error(
                     f"Upsert not configured correctly. No columns provided for updating"
                 )
-            # print(on_update_dict)
+            # self.logger.debug(on_update_dict)
             # build upsert statement for postgresql.
             # self.logger.info(on_update_dict.keys())
             on_conflict_statement = insert_statement.on_conflict_do_update(
@@ -838,7 +838,7 @@ class SQLClient:
         if self.logger:
             self.logger.info(metadata.tables.keys())
         else:
-            print(metadata.tables.keys())
+            self.logger.debug(metadata.tables.keys())
 
     # This function fixes int cols in a dataframe that have been converted to float due to NULL
     def df_fix_int_cols(self, table_name, df, schema="public"):

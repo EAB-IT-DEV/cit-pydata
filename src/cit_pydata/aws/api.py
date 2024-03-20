@@ -3,19 +3,20 @@ import sys
 from cit_pydata.util import api as util_api
 from cit_pydata.util import ON_AWS
 
+from typing import Literal
+import boto3
+
 
 def _get_boto_session(
-    service=None,
-    environment=None,
-    iam_user=None,
-    path_to_env_file=None,
-    region=None,
+    service: str = None,
+    environment: str = None,
+    iam_user: str = None,
+    path_to_env_file: str = None,
+    region: str = None,
     logger=util_api.get_logger(__name__, "info"),
 ):
     if ON_AWS:
         return boto3.Session()
-    elif boto3 not in sys.modules:
-        import boto3
 
     _environment_variable = environment + "_" + iam_user + "_" + "aws_access_key_id"
     aws_access_key_id = util_api.get_environment_variable(
@@ -61,14 +62,13 @@ def _get_boto_session(
     return _session
 
 
-# class cloudwatch_client():
-#     def __init__(self):
-#         self.session = _get_boto_session_session(environment)
-
-
 class S3Client:
     def __init__(
-        self, environment=None, iam_user=None, path_to_env_file=None, log_level="info"
+        self,
+        environment: str = None,
+        iam_user: str = None,
+        path_to_env_file: str = None,
+        log_level: Literal["info", "debug"] = "info",
     ):
         self.logger = util_api.get_logger(__name__, log_level)
         environment = environment.lower()
@@ -86,7 +86,7 @@ class S3Client:
         """
         Returns pandas dataframe with S3 Objects
 
-        kwags for method client.list_objects_v2
+        kwargs for method client.list_objects_v2
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.list_objects_v2
         """
 
@@ -96,7 +96,7 @@ class S3Client:
 
         # Object metadata is retrieved in batches of 1000
         while next_page_token:
-            response = None
+            response: dict = None
             if next_page_token == "init":
                 response = self.client.list_objects_v2(**kwargs)
             else:
@@ -105,7 +105,7 @@ class S3Client:
                 )
 
             next_page_token = response.get("NextContinuationToken", None)
-            # print(next_page_token)
+            # self.logger.debug(next_page_token)
             for object_item in response["Contents"]:
                 object_list.append(object_item)
             response.pop("Contents")
@@ -113,12 +113,12 @@ class S3Client:
         if not pandas in sys.modules:
             import pandas
         df_s3_objects = pandas.DataFrame(object_list)
-        # print(response)
-        # print(df_s3_objects.info())
+        # self.logger.debug(response)
+        # self.logger.debug(df_s3_objects.info())
 
         return response, df_s3_objects
 
-    def metadata_to_sql(self, sql_client, table_name, dataframe):
+    def metadata_to_sql(self, sql_client, table_name: str, dataframe):
         if "sqlalchemy" not in sys.modules:
             import sqlalchemy
 
@@ -138,10 +138,10 @@ class S3Client:
 class SSMClient:
     def __init__(
         self,
-        environment=None,
-        iam_user=None,
-        path_to_env_file=None,
-        log_level="info",
+        environment: str = None,
+        iam_user: str = None,
+        path_to_env_file: str = None,
+        log_level: Literal["info", "debug"] = "info",
         logger=None,
     ):
         self.logger = util_api.get_logger(__name__, log_level) if not logger else logger
@@ -154,7 +154,9 @@ class SSMClient:
         )
         self.client = self.session.client("ssm")
 
-    def get_parameter(self, name, with_decryption=False, is_verbose=False):
+    def get_parameter(
+        self, name: str, with_decryption: bool = False, is_verbose: bool = False
+    ):
         value = None
         try:
             value = self.client.get_parameter(Name=name, WithDecryption=with_decryption)
@@ -174,7 +176,9 @@ class SSMClient:
         # for parameter in response['Parameters']:
         #     return parameter['Value']
 
-    def describe_parameters(self, filter_parameters, is_verbose=False):
+    def describe_parameters(
+        self, filter_parameters: list[dict], is_verbose: bool = False
+    ):
         """
         filter_parameters=[
         {
@@ -186,7 +190,7 @@ class SSMClient:
         },
         """
         max_results = 50
-        describe_param_dict = self.client.describe_parameters(
+        describe_param_dict: dict = self.client.describe_parameters(
             ParameterFilters=filter_parameters, MaxResults=max_results
         )
 

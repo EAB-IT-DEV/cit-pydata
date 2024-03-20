@@ -172,15 +172,15 @@ class MarketoClient:
             import requests
         self._authenticate()
         self.marketo.authenticate()
-        print(self.marketo.token)
+        self.logger.debug(self.marketo.token)
         auth_header = f"Bearer {self.marketo.token}"
         headers = {"Content-Type": "application/json", "Authorization": auth_header}
         url = self.marketo.host + "/rest/v1/leads/submitForm.json"
-        print(url)
-        print(form_payload)
+        self.logger.debug(url)
+        self.logger.debug(form_payload)
         request = requests.post(url=url, headers=headers, json=form_payload)
-        print(request.status_code)
-        print(request.text)
+        self.logger.debug(request.status_code)
+        self.logger.debug(request.text)
 
     def get_program(self, program_id):
         self._authenticate()
@@ -194,7 +194,7 @@ class MarketoClient:
             lead = False
 
         if lead:
-            print(json.dumps(lead, indent=4, sort_keys=True))
+            self.logger.debug(json.dumps(lead, indent=4, sort_keys=True))
 
     def get_lead_fields(self):
         self._authenticate()
@@ -261,7 +261,7 @@ class MarketoClient:
 
         # pd.set_option('display.max_columns', None)
         # column_list = result[0].keys()
-        # print(column_list)
+        # self.logger.debug(column_list)
 
         return df
 
@@ -298,7 +298,7 @@ class MarketoClient:
             sys.exit(1)
 
         co_record_dict_list = df.to_dict("records")
-        # print(records)
+        # self.logger.debug(records)
 
         # save source data as file
         date_time_string = util_api.get_datetime_string()
@@ -321,7 +321,7 @@ class MarketoClient:
                 action="createOrUpdate",
                 dedupeBy=None,
             )
-            print(result)
+            self.logger.debug(result)
         except Exception as e:
             self.logger.error(f'Failed to create CO recods" {str(e)}')
             sys.exit(1)
@@ -338,7 +338,7 @@ class MarketoClient:
             column_list=["seq", "marketoGUID", "status"],
         )
 
-        # print(result)
+        # self.logger.debug(result)
 
     def _delete_co_df(
         self, custom_object_name: str, filter_list: list, delete_by, log_path=None
@@ -584,4 +584,4 @@ class MarketoClient:
 #             batchSize=None, listId=None, leadIds=[7438441])
 #     except KeyError:
 #         lead = False
-#         print(json.dumps(lead, indent=4, sort_keys=True))
+#         self.logger.debug(json.dumps(lead, indent=4, sort_keys=True))

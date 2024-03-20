@@ -21,7 +21,7 @@ Homepage = "https://github.com/EAB-IT-DEV/cit-pydata"
 Issues = "https://github.com/EAB-IT-DEV/cit-pydata/issues"
 
 [project.optional-dependencies]
-aws = ["pandas","aws-lambda-powertools"]
+aws = ["aws-lambda-powertools"]
 box = ["boxsdk"]
 joblog = ["marketorestpython"]
 salesforce = ["simple_salesforce","pyforce"]

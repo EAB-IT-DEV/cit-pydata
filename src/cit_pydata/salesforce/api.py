@@ -192,9 +192,9 @@ class SalesforceClient:
                     self.logger.error(e)
                     self.logger.error(r.json())
                     self.logger.error(f"Failed to authenticate to Salesforce")
-                    os.sys.exit(1)
+                    os.
                 json_response = r.json()
-            # print(json_response)
+            # self.logger.debug(json_response)
 
             self.sf_token = json_response
             self.access_token = json_response.get("access_token", None)
@@ -271,8 +271,8 @@ class SalesforceClient:
         if hasattr(self.sf, object_api_name):
             ssf_object = getattr(self.ssf, object_api_name)
         else:
-            print(f"Error: object does not exist {object_api_name}")
-            sys.exit(1)
+            self.logger.debug(f"Error: object does not exist {object_api_name}")
+            
 
         sf_object_result = ssf_object.get(record_id)
 
@@ -342,7 +342,7 @@ class SalesforceClient:
 
         with open("all_objects.json", "r") as read_file:
             loaded_dict = json.loads(read_file.read())
-        # print(type(loaded_dict))
+        # self.logger.debug(type(loaded_dict))
         replicateable_object_list = list()
         sobjects_list = loaded_dict.get("sobjects")
         keep_key_list = ["name", "replicateable", "urls"]
@@ -367,9 +367,9 @@ class SalesforceClient:
                 replicateable_object_list.append(
                     key_filtered_replicateable_sobject_dict
                 )
-            # print(sobject_dict.values())
+            # self.logger.debug(sobject_dict.values())
 
-        print(
+        self.logger.debug(
             "There are {} replicatable objects in this SF instance".format(
                 len(replicateable_object_list)
             )
@@ -385,7 +385,7 @@ class SalesforceClient:
 
         with open("replicateable_object_list.txt", "w") as f:
             for sf_object in sf_list:
-                print(sf_object["name"])
+                self.logger.debug(sf_object["name"])
                 f.write(sf_object["name"])
                 f.write("\n")
 
@@ -594,7 +594,7 @@ class SalesforceSOAPClient:
                 svc.login(sf_username, sf_password)
             except Exception as e:
                 self.logger.error(f"Failed to authenticate to Salesforce")
-                os.sys.exit(1)
+                os.
 
             return svc
 

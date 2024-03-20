@@ -24,7 +24,7 @@ class BoxClient:
         except Client.BoxAPIException as err:
             self.logger.error("Failed to Authenticate to Box API:", err)
 
-    def get_folder(self, folder_id):
+    def get_folder(self, folder_id: str):
         if not self.client:
             self._get_client()
 
@@ -33,7 +33,7 @@ class BoxClient:
     def get_file(self):
         pass
 
-    def get_folder_items(self, folder_id, filter_type=None):
+    def get_folder_items(self, folder_id: str, filter_type: str = None):
         if not self.client:
             self._get_client()
 

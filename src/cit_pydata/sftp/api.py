@@ -114,7 +114,7 @@ class SFTPClient:
 
             log_message = f"Successfully connected to {self.instance} SFTP server."
             self.logger.info(log_message)
-            # print('Hooray!')
+            # self.logger.debug('Hooray!')
         except paramiko.AuthenticationException as auth_exception:
             self.logger.error(
                 f"Authentication failed for the {self.instance} SFTP Server: {auth_exception}"
