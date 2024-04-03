@@ -11,9 +11,10 @@ def encode_base64(value: str):
     """
     Returns base64 encoded value for the input string parameter
     """
+    import base64
+
     binary_value = value.encode("ascii")
-    if not "base64" in sys.modules:
-        import base64
+
     return base64.b64encode(binary_value)
 
 
@@ -31,12 +32,12 @@ def multireplace(string, replacements, ignore_case=False):
     """
     # Source: https://gist.github.com/bgusach/a967e0587d6e01e889fd1d776c5f3729
 
+    import re
+
     if not replacements:
         # Edge case that'd produce a funny regex and cause a KeyError
         return string
 
-    if not "re" in sys.modules:
-        import re
     # If case insensitive, we need to normalize the old string so that later a replacement
     # can be found. For instance with {"HEY": "lol"} we should match and find a replacement for "hey",
     # "HEY", "hEy", etc.
@@ -76,6 +77,8 @@ def list_dict_to_csv(file_path, file_name, data_list, column_list=None):
     dictionary should be column_name:value format
 
     """
+    import csv
+
     if type(data_list) != list:
         return False
 
@@ -93,8 +96,6 @@ def list_dict_to_csv(file_path, file_name, data_list, column_list=None):
     if not os.path.exists(file_path):
         os.makedirs(file_path)
 
-    if "csv" not in sys.modules:
-        import csv
     with open(full_file_path, "w+", newline="") as csv_file:
         csv_writer = csv.DictWriter(csv_file, fieldnames=column_list)
         csv_writer.writeheader()
@@ -104,9 +105,9 @@ def list_dict_to_csv(file_path, file_name, data_list, column_list=None):
 
 
 def json_to_file(json_object, file_path):
+    import json
+
     remove_file(file_path)
-    if "json" not in sys.modules:
-        import json
     with open(file_path, "w") as json_file:
         json.dump(json_object, json_file)
 
@@ -130,8 +131,7 @@ def get_environment_variable(
         )
         return None
 
-    if not "dotenv" in sys.modules:
-        from dotenv import dotenv_values
+    from dotenv import dotenv_values
 
     _path_to_env_file = None
 
@@ -195,6 +195,7 @@ def get_logger(
     """
     if not ON_AWS and log_type in ("console", "file"):
         import logging
+        import re
 
         logger = logging.getLogger(logger_name)
 
@@ -266,8 +267,6 @@ def get_logger(
                     and type(cleanup_policy) == dict
                     and "retain_last_n" in cleanup_policy.keys()
                 ):
-                    if not "re" in sys.modules:
-                        import re
                     log_file_regex = re.compile(f"^{base_file_name}.*\.log$")
                     # try catch to prevent failure from affecting actual job
                     try:
@@ -324,8 +323,8 @@ def cleanup_logs(
     Returns:
     number of files that were attempted to be deleted: int
     """
-    if "re" not in sys.modules:
-        import re
+    import re
+
     remove_counter = 0
 
     # determine cutoff_time
@@ -368,10 +367,9 @@ def find_text_in_files(root_path, text_regex):
     Searches .py files line by  line matching on regex pattern
     Files are recursively searched starting in root_path
     """
-    if not "re" in sys.modules:
-        import re
-    if not "pprint" in sys.modules:
-        import pprint
+    import re
+    import pprint
+
     os.listdir()
     file_list = []
     for dirpath, dirnames, filenames in os.walk(root_path):
@@ -408,10 +406,9 @@ def find_text_in_files(root_path, text_regex):
 
 def get_core_conn(folder_path) -> dict:
     """Retrieves the connection configuration to the core systems"""
+    import json
 
     file_path = os.path.join(folder_path, "core_conn.json")
-    if "json" not in sys.modules:
-        import json
     with open(file_path, "r") as f:
         conn_dict = json.load(f)
 

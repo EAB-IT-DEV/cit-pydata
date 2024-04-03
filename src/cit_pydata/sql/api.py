@@ -55,10 +55,8 @@ class SQLClient:
 
         This method will use the AWS IAM credentials defined in the local .env file to get the AWS SSM parameters defining SQL authentication details
         """
-        if "re" not in sys.modules:
-            import re
-        if "urllib.parse" not in sys.modules:
-            from urllib.parse import quote
+        import re
+        from urllib.parse import quote
 
         try:
             _aws_environment = None
@@ -263,8 +261,8 @@ class SQLClient:
     def execute_stored_procedure(
         self, stored_procedure_name, param_list, skip_transaction: bool = False
     ):
-        if "re" not in sys.modules:
-            import re
+        import re
+
         _param_markers_list = ",".join(["?" for param in param_list])
 
         if self.dialect == "pymssql":
@@ -346,8 +344,8 @@ class SQLClient:
         return True
 
     def __split_df(self, df, chunksize):
-        if "math" not in sys.modules:
-            from math import ceil
+        from math import ceil
+
         chunk_count = int(ceil(df.size / chunksize))
         return np.array_split(df, chunk_count)
 
@@ -452,8 +450,7 @@ class SQLClient:
         return dataframe
 
     def get_dataframe_table(self, table_name, chunk_count=None, **kwargs):
-        if "itertools" not in sys.modules:
-            from itertools import islice
+        from itertools import islice
 
         s = time.time()
         if "chunksize" not in kwargs.keys():
@@ -666,11 +663,8 @@ class SQLClient:
             data_iter : Iterable that iterates the values to be inserted
         """
         # gets a DBAPI connection that can provide a cursor
-        if "csv" not in sys.modules:
-            import csv
-
-        if "io" not in sys.modules:
-            from io import StringIO
+        import csv
+        from io import StringIO
 
         dbapi_conn = conn.connection
         with dbapi_conn.cursor() as cur:
@@ -697,8 +691,8 @@ class SQLClient:
 
     #### HAS NOT BEEN TESTED YET  MAY NOT WORK####
     def postgres_quickexport_df(self, table_name):
-        if "io" not in sys.modules:
-            from io import StringIO
+        from io import StringIO
+
         if self.dialect != "psycopg2":
             self.logger.error(f"unsupported dialect for upsert {self.dialect}")
         dbapi_conn = self._get_sql_engine.connect()

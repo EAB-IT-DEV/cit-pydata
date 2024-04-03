@@ -65,6 +65,8 @@ class SalesforceClient:
             'signature': 'zzz'
         }
         """
+        import requests
+
         if self.sf_token is None:
             try:
                 aws_ssm_client = aws_api.SSMClient(
@@ -168,8 +170,6 @@ class SalesforceClient:
                 "username": sf_username,
                 "password": sf_password + sf_security_token,
             }
-            if "requests" not in sys.modules:
-                import requests
             # Get OAuth access token
             with requests.Session() as session:
                 # headers={'Content-Type': 'application/json'}
@@ -204,11 +204,10 @@ class SalesforceClient:
         """
         Creates and returns a simple-salesforce object
         """
+        from simple_salesforce import Salesforce
+
         if self.sf_token is None:
             self._authenticate()
-
-        if "simple_salesforce" not in sys.modules:
-            from simple_salesforce import Salesforce
 
         _instance_url = self.get_instance_url()
         _access_token = self.get_access_token()
@@ -262,8 +261,7 @@ class SalesforceClient:
         """Returns DataFrame from Object and Record Id query
         TODO finish dev
         """
-        if "pandas" not in sys.modules:
-            import pandas
+        import pandas
 
         self._get_simple_sf()
 
@@ -326,11 +324,10 @@ class SalesforceClient:
         return None
 
     def get_replicatable_objects(self, is_refresh_from_sf=None):
+        from collections import OrderedDict
+        import json
+
         self._authenticate()
-        if "collections" not in sys.modules:
-            from collections import OrderedDict
-        if "json" not in sys.modules:
-            import json
 
         if is_refresh_from_sf == True:
             # Get All Salesforce Object Metadata
@@ -393,14 +390,12 @@ class SalesforceClient:
         """
         Returns dataframe from SOQL query
         """
-        if "pandas" not in sys.modules:
-            import pandas
+        import pandas
+        import requests
 
         self._authenticate()
 
         self.logger.debug("SOQL Query: {}".format(soql_query))
-        if "requests" not in sys.modules:
-            import requests
         with requests.Session() as session:
             ssf = self._get_simple_sf(session)
             sf_result_dict = ssf.query_all(soql_query)
@@ -414,12 +409,12 @@ class SalesforceClient:
         return df
 
     def update_record(self, object_api_name, record_id, data_dict):
+        import requests
+
         self._authenticate()
         self.logger.info(
             f'Update - {object_api_name}. Id:{record_id}, data_dict: "{data_dict}"'
         )
-        if "requests" not in sys.modules:
-            import requests
         with requests.Session() as session:
             ssf = self._get_simple_sf(session)
             sf_load_object_result = getattr(ssf, object_api_name).update(
@@ -429,9 +424,9 @@ class SalesforceClient:
         return sf_load_object_result
 
     def execute_apex(self, operation, method, payload):
+        import requests
+
         self._authenticate()
-        if "requests" not in sys.modules:
-            import requests
         with requests.Session() as session:
             ssf = self._get_simple_sf(session)
             self.logger.info(f"Executing Apex: {operation} {method}")
@@ -494,8 +489,8 @@ class SalesforceSOAPClient:
             'signature': 'zzz'
         }
         """
-        if "pyforce" not in sys.modules:
-            import pyforce
+        import pyforce
+
         if self.sf_token is None:
             try:
                 aws_ssm_client = aws_api.SSMClient(

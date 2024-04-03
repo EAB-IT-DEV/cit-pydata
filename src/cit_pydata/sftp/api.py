@@ -38,8 +38,8 @@ class SFTPClient:
     def _connect(self):
         """Method for connecting to SFTP Server
         Called from all loading/downloading methods"""
-        if "paramiko" not in sys.modules:
-            import paramiko
+        import paramiko
+
         try:
             aws_ssm_client = aws_api.SSMClient(
                 environment=self.aws_environment,
@@ -152,8 +152,7 @@ class SFTPClient:
         with an optional archive_suffix in the filename.
         Returns True if the file transfer is successful, False otherwise.
         Default behavior is to automatically close the connection after load"""
-        if "datetime" not in sys.modules:
-            from datetime import datetime
+        from datetime import datetime
 
         if self.sftp_session is None:
             connected = self._connect()
@@ -247,6 +246,9 @@ class SFTPClient:
         to the archive folder with an optional archive_suffix in the filename.
         Returns True if the file download is successful, False otherwise.
         Default behavior is to automatically close the connection after download."""
+        import shutil
+        from datetime import datetime
+
         if self.sftp_session is None:
             connected = self._connect()
             if not connected:
@@ -307,10 +309,6 @@ class SFTPClient:
                             )
                             return True
                         else:
-                            if "shutil" not in sys.modules:
-                                import shutil
-                            if "datetime" not in sys.modules:
-                                from datetime import datetime
                             # Archive the existing file
                             archive_suffix = archive_suffix or datetime.now().strftime(
                                 "%Y%m%d"

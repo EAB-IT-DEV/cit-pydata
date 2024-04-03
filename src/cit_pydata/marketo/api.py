@@ -48,6 +48,8 @@ class MarketoClient:
         ]
 
     def _authenticate(self):
+        from marketorestpython.client import MarketoClient as marketorestpython
+
         if self.marketo is None:
             try:
                 aws_ssm_client = aws_api.SSMClient(
@@ -109,8 +111,6 @@ class MarketoClient:
 
             api_limit = None
             max_retry_time = None
-            if not "marketorestpython" in sys.modules:
-                from marketorestpython.client import MarketoClient as marketorestpython
             self.marketo = marketorestpython(
                 munchkin_id=munchkin_id,
                 client_id=client_id,
@@ -134,6 +134,8 @@ class MarketoClient:
         return response
 
     def execute_api_call(self, method, endpoint, *args, **kwargs):
+        import json
+
         self._authenticate()
         self.marketo.authenticate()
 
@@ -142,9 +144,6 @@ class MarketoClient:
             api_args.update(args)
 
         data = kwargs.get("body", None)
-
-        if "json" not in sys.modules:
-            import json
 
         self.logger.info(f"Sending API Call {str(method).upper()}: {endpoint} ")
         self.logger.info(f"\tParams: {json.dumps(api_args)} ")
@@ -168,8 +167,8 @@ class MarketoClient:
         return True, result
 
     def submit_form(self, form_payload: dict):
-        if not "requests" in sys.modules:
-            import requests
+        import requests
+
         self._authenticate()
         self.marketo.authenticate()
         self.logger.debug(self.marketo.token)
@@ -183,10 +182,9 @@ class MarketoClient:
         self.logger.debug(request.text)
 
     def get_program(self, program_id):
-        self._authenticate()
+        import json
 
-        if "json" not in sys.modules:
-            import json
+        self._authenticate()
 
         try:
             lead = self.client.execute(method="get_program_by_id", id=program_id)
@@ -208,11 +206,10 @@ class MarketoClient:
         return result["result"]
 
     def get_lead_fields2(self):
+        import json
+
         self._authenticate()
         lead = self.marketo.execute(method="describe2")
-
-        if "json" not in sys.modules:
-            import json
 
         file_path = "src/core/marketo/data/out/marketo_lead_describe2.json"
         util_api.remove_file(file_path)
@@ -226,8 +223,8 @@ class MarketoClient:
         """
         Returns DataFrame of Custom Object records based on filter criteria
         """
-        if "pandas" not in sys.modules:
-            import pandas as pd
+        import pandas as pd
+
         batch_size = 300
         field_list = self.CUSTOM_OBJECT_STANDARD_FIELDS
         for field in custom_field_list:
@@ -346,8 +343,8 @@ class MarketoClient:
         """
         Deletes Marketo custom object records with filter_list and delete_by arguments.
         """
-        if "pandas" not in sys.modules:
-            import pandas as pd
+        import pandas as pd
+
         self.logger.info(
             f"Deleting {len(filter_list)} {custom_object_name} custom object records"
         )
@@ -409,6 +406,7 @@ class MarketoClient:
         In order to delete CO records in Marketo first we get all Marketo leads/contacts that shouldn't have any CO records and we delete those.
         Next for leads/contacts that have at least one CO records, we compare existing CO records to all CO records and filter out good records
         """
+        import pandas as pd
 
         # this dict contains the sql queries for fetching the lead counter ids in order to interrogate
         #   the Marketo custom object records and search for records to delete
@@ -448,8 +446,6 @@ class MarketoClient:
             f"Checking Custom Object {custom_object_name} for records to delete"
         )
 
-        if "pandas" not in sys.modules:
-            import pandas as pd
         # init DataFrame
         co_records_delete_df = pd.DataFrame()
 
