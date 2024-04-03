@@ -13,8 +13,8 @@ class JobLogClient:
         self.log_guid = None
 
     def start(self):
-        if "uuid" not in sys.modules:
-            import uuid
+        import uuid
+
         if not self.log_guid:
             self.log_guid = str(uuid.uuid4())
             param_list = [self.job_name, "initializing", self.log_guid]

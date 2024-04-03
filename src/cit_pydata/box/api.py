@@ -14,8 +14,8 @@ class BoxClient:
         self.client = None
 
     def _get_client(self):
-        if "boxsdk" not in sys.modules:
-            from boxsdk import Client, JWTAuth, OAuth2
+        from boxsdk import Client, JWTAuth, OAuth2
+
         # JWT Auth
         auth = JWTAuth.from_settings_file(self.box_jwt_auth_file_path)
 

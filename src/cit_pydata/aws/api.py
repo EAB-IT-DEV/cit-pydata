@@ -89,6 +89,7 @@ class S3Client:
         kwargs for method client.list_objects_v2
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.list_objects_v2
         """
+        import pandas
 
         # self.logger.info(f'Getting S3 objects: {**kwargs}')
         object_list = []
@@ -110,8 +111,6 @@ class S3Client:
                 object_list.append(object_item)
             response.pop("Contents")
 
-        if not pandas in sys.modules:
-            import pandas
         df_s3_objects = pandas.DataFrame(object_list)
         # self.logger.debug(response)
         # self.logger.debug(df_s3_objects.info())
@@ -119,8 +118,7 @@ class S3Client:
         return response, df_s3_objects
 
     def metadata_to_sql(self, sql_client, table_name: str, dataframe):
-        if "sqlalchemy" not in sys.modules:
-            import sqlalchemy
+        import sqlalchemy
 
         try:
             sql_client.insert_df(
