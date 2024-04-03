@@ -359,7 +359,7 @@ def get_log_level(path_to_env=PATH_TO_ENV):
             path_to_env_file=path_to_env, variable_name="log_level"
         )
     elif ON_AWS:
-        _log_level = os.getenv("POWERTOOLS_LOG_LEVEL")
+        _log_level = os.getenv("POWERTOOLS_LOG_LEVEL", _log_level)
     return _log_level
 
 
