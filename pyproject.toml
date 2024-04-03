@@ -21,7 +21,7 @@ Homepage = "https://github.com/EAB-IT-DEV/cit-pydata"
 Issues = "https://github.com/EAB-IT-DEV/cit-pydata/issues"
 
 [project.optional-dependencies]
-aws = ["aws-lambda-powertools"]
+aws = ["aws-lambda-powertools", "boto3"]
 box = ["boxsdk"]
 joblog = ["marketorestpython"]
 salesforce = ["simple_salesforce","pyforce"]
@@ -32,5 +32,5 @@ sql-pymssql = ["SQLAlchemy<2.0", "pymssql", "numpy", "pandas"]
 sql-psycopg2 = ["SQLAlchemy<2.0", "psycopg2-binary", "numpy", "pandas"]
 sql-mssql = ["SQLAlchemy<2.0", "pymssql", "numpy", "pandas"]
 sql-postgres = ["SQLAlchemy<2.0", "psycopg2-binary", "numpy", "pandas"]
-local = ["python-dotenv", "boto3"]
+local = ["python-dotenv"]
 all = ["aws-lambda-powertools","pandas","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy<2.0", "pyodbc","pymssql", "numpy", "pandas","psycopg2-binary","python-dotenv", "boto3"]
