@@ -8,6 +8,7 @@ from cit_pydata.aws import api as aws_api
 import time
 import numpy as np
 import pandas as pd
+import polars as pl
 
 from sqlalchemy import dialects, create_engine, text, MetaData, Table
 from sqlalchemy.orm import Session
@@ -446,6 +447,22 @@ class SQLClient:
                 dataframe = pd.DataFrame.from_records(
                     cursor_result, columns=cursor_result.keys()
                 )
+
+        return dataframe
+
+    def execute_sql_select_pl(self, sql_statement, execute_options: dict = None) -> pl.DataFrame:
+        """ similar to execute_sql_select2,
+            but the function process the sql with polars and return a polars DataFrame"""
+        dataframe = None
+        if not execute_options:
+            execute_options = {}
+
+        with self.sql_engine.connect() as connection:
+            dataframe = pl.read_database(
+                query=text(sql_statement),
+                connection=connection,
+                execute_options=execute_options,
+            )
 
         return dataframe
 
