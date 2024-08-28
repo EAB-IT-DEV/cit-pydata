@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cit-pydata"
-version = "0.0.1.dev4"
+version = "0.0.1.dev5"
 authors = [
   { name="Dionis Wang", email="dwang@eab.com" },
 ]
