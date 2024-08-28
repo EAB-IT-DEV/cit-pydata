@@ -453,6 +453,7 @@ class SQLClient:
     def execute_sql_select_pl(self, sql_statement, execute_options: dict = None) -> pl.DataFrame:
         """ similar to execute_sql_select2,
             but the function process the sql with polars and return a polars DataFrame"""
+            
         dataframe = None
         if not execute_options:
             execute_options = {}
