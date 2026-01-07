@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cit-pydata"
-version = "0.0.1.dev5"
+version = "0.0.1.dev6"
 authors = [
-  { name="Dionis Wang", email="dwang@eab.com" },
+  { name="Dionis Wang", email="dwang@eab.com" },{ name="Andrew Fitch", email="afitch@eab.com" },
 ]
 description = "Python clients for commonly used api services including Salesforce, SQL, Marketo, Box, SFSync*, and JobLog*"
 readme = "README.md"
