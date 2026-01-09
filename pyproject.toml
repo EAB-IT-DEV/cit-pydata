@@ -34,3 +34,4 @@ sql-mssql = ["SQLAlchemy<2.0", "pymssql", "numpy", "pandas"]
 sql-postgres = ["SQLAlchemy<2.0", "psycopg2-binary", "numpy", "pandas"]
 local = ["python-dotenv"]
 all = ["aws-lambda-powertools","pandas","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy<2.0", "pyodbc","pymssql", "numpy", "pandas","psycopg2-binary","python-dotenv", "boto3"]
+"AWSTemplateFormatVersion": "2010-09-09"
