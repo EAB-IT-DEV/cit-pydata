@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cit-pydata"
 version = "0.0.1.dev10"
 authors = [
-  { name="Dionis Wang", email="dwang@eab.com" },{ name="Andrew Fitch", email="afitch@eab.com" },
+  { name="Dionis Wang", email="dwang@eab.com" },{ name="Andrew Fitch", email="afitch@eab.com" },{ name="Dagim Desta", email="ddesta@eab.com" }
 ]
 description = "Python clients for commonly used api services including Salesforce, SQL, Marketo, Box, SFSync*, and JobLog*"
 readme = "README.md"
@@ -34,4 +34,3 @@ sql-mssql = ["SQLAlchemy<2.0", "pymssql", "numpy", "pandas"]
 sql-postgres = ["SQLAlchemy<2.0", "psycopg2-binary", "numpy", "pandas"]
 local = ["python-dotenv"]
 all = ["aws-lambda-powertools","pandas","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy<2.0", "pyodbc","pymssql", "numpy", "pandas","psycopg2-binary","python-dotenv", "boto3"]
-"AWSTemplateFormatVersion": "2010-09-09"

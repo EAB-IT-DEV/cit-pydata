@@ -15,8 +15,17 @@ def _get_boto_session(
     region: str = None,
     logger=util_api.get_logger(__name__, "info"),
 ):
+    if logger is None:
+        logger = util_api.get_logger(__name__, "info")
+
     if ON_AWS:
         return boto3.Session()
+
+    if not environment or not iam_user:
+        logger.error(
+            "environment and iam_user are required when not running on AWS"
+        )
+        return None
 
     _environment_variable = environment + "_" + iam_user + "_" + "aws_access_key_id"
     aws_access_key_id = util_api.get_environment_variable(
@@ -71,7 +80,8 @@ class S3Client:
         log_level: Literal["info", "debug"] = "info",
     ):
         self.logger = util_api.get_logger(__name__, log_level)
-        environment = environment.lower()
+        if environment is not None:
+            environment = environment.lower()
 
         self.session = _get_boto_session(
             service="s3",
@@ -80,6 +90,10 @@ class S3Client:
             path_to_env_file=path_to_env_file,
             logger=self.logger,
         )
+        if self.session is None:
+            self.logger.error("Failed to initialize boto3 session")
+            self.client = None
+            return
         self.client = self.session.client("s3")
 
     def get_object_metadata(self, **kwargs):
@@ -150,6 +164,10 @@ class SSMClient:
             path_to_env_file=path_to_env_file,
             logger=self.logger,
         )
+        if self.session is None:
+            self.logger.error("Failed to initialize boto3 session")
+            self.client = None
+            return
         self.client = self.session.client("ssm")
 
     def get_parameter(
@@ -175,7 +193,7 @@ class SSMClient:
         #     return parameter['Value']
 
     def describe_parameters(
-        self, filter_parameters: list[dict], is_verbose: bool = False
+        self, filter_parameters: List[Dict], is_verbose: bool = False
     ):
         """
         filter_parameters=[
