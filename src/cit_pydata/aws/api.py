@@ -13,14 +13,14 @@ def _get_boto_session(
     iam_user: str = None,
     path_to_env_file: str = None,
     region: str = None,
-    logger=util_api.get_logger(__name__, "info"),
+    logger=util_api.get_logger(__name__, "info")
 ):
     if logger is None:
         logger = util_api.get_logger(__name__, "info")
 
     if ON_AWS:
         return boto3.Session()
-
+    
     if not environment or not iam_user:
         logger.error(
             "environment and iam_user are required when not running on AWS"
@@ -193,7 +193,7 @@ class SSMClient:
         #     return parameter['Value']
 
     def describe_parameters(
-        self, filter_parameters: List[Dict], is_verbose: bool = False
+        self, filter_parameters: list[dict], is_verbose: bool = False
     ):
         """
         filter_parameters=[
