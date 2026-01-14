@@ -13,9 +13,12 @@ def encode_base64(value: str):
     """
     import base64
 
-    binary_value = value.encode("ascii")
+    if value is None:
+        raise ValueError("value must not be None")
+    else:
+        binary_value = value.encode("ascii")
 
-    return base64.b64encode(binary_value)
+    return base64.b64encode(binary_value).decode("ascii")
 
 
 def get_datetime_string():
@@ -125,6 +128,9 @@ def get_environment_variable(
     if not logger:
         logger = get_logger()
 
+    if not variable_name:
+        raise ValueError("variable_name must be provided")
+    
     if ON_AWS and variable_name.startswith("aws"):
         logger.info(
             f"Detected on AWS. Skipping retrieval of AWS .env variable {variable_name}"
