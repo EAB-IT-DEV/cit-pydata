@@ -37,27 +37,16 @@ class BoxClient:
         if not self.client:
             self._get_client()
 
+        if filter_type not in ("file", "folder", None):
+            raise ValueError("filter_type must be 'file', 'folder', or None")
+
         item_id_dict = {}
         items = self.client.folder(folder_id=folder_id).get_items()
 
-        assert filter_type in ["file", "folder", None]
-        if filter_type == "file":
-            for item in items:
-                if item.type == filter_type:
-                    item_id_dict[item.id] = item
-        elif filter_type == "folder":
-            for item in items:
-                if item.type == filter_type:
-                    item_id_dict[item.id] = item
-        else:
-            for item in items:
-                item_id_dict[item.id] = item
-
         for item in items:
-            if item.type == filter_type:
-                item_id_dict[item.id] = {"name": item.name, "type": item.type}
-            else:
-                item_id_dict[item.id] = {"name": item.name, "type": item.type}
+            if filter_type is not None and item.type != filter_type:
+                continue
+            item_id_dict[item.id] = {"name": item.name, "type": item.type}
 
         return item_id_dict
 
