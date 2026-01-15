@@ -233,8 +233,10 @@ class SQLClient:
             self.logger.error(f"Query not supplied")
 
         return None
+        
+    from typing import Generator
 
-    def stream_dataframe_query(self, query: str, kwargs: dict) -> pd.DataFrame:
+    def stream_dataframe_query(self, query: str, kwargs: dict) -> Generator[pd.DataFrame, None, None]:
         """Returns Pandas DataFrame Iterator from SQL Query
         Arguments:
             query - A SQL Select statement
