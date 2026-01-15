@@ -76,7 +76,7 @@ class SQLClient:
         base_ssm_parameter_name = "/eab-pydata/sql/"
         if self.sql_instance:
             sql_password_parameter_name = (
-                self.base_ssm_parameter_name
+                base_ssm_parameter_name
                 + self.sql_hostname
                 + "/"
                 + self.sql_instance
@@ -85,7 +85,7 @@ class SQLClient:
             )
         else:
             sql_password_parameter_name = (
-                self.base_ssm_parameter_name + self.sql_hostname + "/" + self.sql_user
+                base_ssm_parameter_name + self.sql_hostname + "/" + self.sql_user
             )
 
         sql_password = None
