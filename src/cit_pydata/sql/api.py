@@ -280,6 +280,7 @@ class SQLClient:
                 # if skip_transaction:
                 #     cursor.commit()
                 cursor.callproc(stored_procedure_name, param_list)
+                connection.commit()
                 cursor.close()
                 # connection.commit()
                 connection.close()
