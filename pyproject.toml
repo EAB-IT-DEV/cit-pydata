@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cit-pydata"
-version = "0.0.2.dev5"
+version = "0.0.2.dev6"
 authors = [
   { name="Dionis Wang", email="dwang@eab.com" },{ name="Andrew Fitch", email="afitch@eab.com" },{ name="Dagim Desta", email="ddesta@eab.com" }
 ]
@@ -24,6 +24,7 @@ Issues = "https://github.com/EAB-IT-DEV/cit-pydata/issues"
 aws = ["aws-lambda-powertools", "boto3"]
 box = ["boxsdk"]
 joblog = ["marketorestpython"]
+mailer = ["requests", "boto3"]
 salesforce = ["simple_salesforce","pyforce"]
 sftp = ["paramiko"]
 sql = ["SQLAlchemy<2.0", "numpy", "pandas"]
@@ -33,4 +34,4 @@ sql-psycopg2 = ["SQLAlchemy<2.0", "psycopg2-binary", "numpy", "pandas"]
 sql-mssql = ["SQLAlchemy<2.0", "pymssql", "numpy", "pandas"]
 sql-postgres = ["SQLAlchemy<2.0", "psycopg2-binary", "numpy", "pandas"]
 local = ["python-dotenv"]
-all = ["aws-lambda-powertools","pandas","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy<2.0", "pyodbc","pymssql", "numpy", "pandas","psycopg2-binary","python-dotenv", "boto3"]
+all = ["aws-lambda-powertools","pandas","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy<2.0", "pyodbc","pymssql", "numpy", "pandas","psycopg2-binary","python-dotenv", "boto3", "requests"]
