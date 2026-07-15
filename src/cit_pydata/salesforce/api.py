@@ -4,6 +4,9 @@ import sys
 from cit_pydata.util import api as util_api
 from cit_pydata.aws import api as aws_api
 
+# Salesforce REST API version used for direct REST calls (e.g. binary downloads).
+DEFAULT_API_VERSION = "59.0"
+
 
 def get_field_value_from_relationship_lookup(lookup_dict, field_api_name):
     assert isinstance(lookup_dict, dict)
@@ -434,6 +437,80 @@ class SalesforceClient:
             result = ssf.apexecute(method, method=operation, data=payload)
             self.logger.info(f"Response: {result}")
         return result
+
+    def get_content_versions_for_entity(
+        self, linked_entity_id, file_extension: str = None, latest_only: bool = True
+    ):
+        """
+        Returns a DataFrame of the Salesforce Files (ContentVersion records)
+        attached to a record via ContentDocumentLink - e.g. the files on an
+        Opportunity. One row per file, with columns:
+        Id (the ContentVersion Id to download), Title, FileExtension,
+        ContentSize, ContentDocumentId.
+
+        file_extension filters case-insensitively (e.g. "pdf"). latest_only keeps
+        just the current published version of each file.
+        """
+        conditions = [
+            "ContentDocumentId IN "
+            "(SELECT ContentDocumentId FROM ContentDocumentLink "
+            f"WHERE LinkedEntityId = '{linked_entity_id}')"
+        ]
+        if latest_only:
+            conditions.append("IsLatest = true")
+        if file_extension:
+            conditions.append(f"FileExtension = '{file_extension.lower()}'")
+
+        soql = (
+            "SELECT Id, Title, FileExtension, ContentSize, ContentDocumentId "
+            "FROM ContentVersion WHERE " + " AND ".join(conditions)
+        )
+        return self.get_dataframe_soql(soql)
+
+    def download_content_version(
+        self,
+        content_version_id,
+        filepath: str = None,
+        api_version: str = DEFAULT_API_VERSION,
+        chunk_size: int = 8192,
+    ):
+        """
+        Downloads the binary content (VersionData) of a ContentVersion.
+
+        If `filepath` is given, streams the content to that path and returns the
+        path; otherwise returns the raw bytes. Uses a direct REST call with the
+        OAuth bearer token, so it works for any file type (PDF, etc.).
+        """
+        import requests
+
+        self._authenticate()
+        url = (
+            f"{self.instance_url}/services/data/v{api_version}"
+            f"/sobjects/ContentVersion/{content_version_id}/VersionData"
+        )
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+
+        response = requests.get(url, headers=headers, stream=filepath is not None)
+        try:
+            response.raise_for_status()
+        except Exception as e:
+            self.logger.error(
+                f"Failed to download ContentVersion {content_version_id}: {e}"
+            )
+            self.logger.error(response.text)
+            raise
+
+        if filepath:
+            with open(filepath, "wb") as file_obj:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        file_obj.write(chunk)
+            self.logger.info(
+                f"Downloaded ContentVersion {content_version_id} to {filepath}"
+            )
+            return filepath
+
+        return response.content
 
 
 class SalesforceSOAPClient:
