@@ -9,14 +9,26 @@ EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 FILE_ALIAS_PATTERN = re.compile(r"^[a-zA-Z0-9_-][a-zA-Z0-9_. -]*[a-zA-Z0-9_-]$")
 
 GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
-# Attachments above this size require a Graph upload session rather than an
-# inline base64 fileAttachment. sendMail supports inline attachments up to ~3 MB.
+# Attachments whose combined size is at or below this threshold are sent inline
+# (base64) in a single sendMail call. Above it, the message is sent via a draft
+# plus an upload session. sendMail's total request limit is ~4 MB, so 3 MB is a
+# safe cutover point.
 MAX_INLINE_ATTACHMENT_BYTES = 3 * 1024 * 1024
+# Absolute per-attachment ceiling. Graph upload sessions support up to 150 MB.
+MAX_ATTACHMENT_BYTES = 150 * 1024 * 1024
+# Chunk size for upload sessions. Every chunk except the last must be a multiple
+# of 320 KiB per the Graph API.
+UPLOAD_CHUNK_SIZE = 12 * 320 * 1024  # 3,932,160 bytes (~3.75 MiB)
 
 
 class MailClient:
     """
-    Sends email via the Microsoft Graph API (sendMail endpoint).
+    Sends email via the Microsoft Graph API.
+
+    Small messages (attachments totaling <= ~3 MB) are sent in a single sendMail
+    call. Larger messages automatically switch to a draft + chunked upload
+    session, which supports individual attachments up to 150 MB (e.g. Salesforce
+    Files/ContentVersion PDFs).
 
     Authenticates with the OAuth2 client-credentials flow using an app
     registration (tenant_id / client_id / client_secret) that has been granted
@@ -140,10 +152,13 @@ class MailClient:
         if not self._access_token:
             raise ValueError("Microsoft Graph token response did not include an access_token")
 
-    def _build_attachment(self, attachment, attachment_alias: str = None) -> dict:
+    def _read_attachment(self, attachment, attachment_alias: str = None):
         """
-        Builds a Graph fileAttachment dict from a filepath (str) or an object
-        exposing to_csv() (e.g. a pandas DataFrame).
+        Reads an attachment and returns a (filename, content_bytes) tuple.
+
+        `attachment` is a filepath (str) or an object exposing to_csv() (e.g. a
+        pandas DataFrame). `attachment_alias` renames the attachment to something
+        more recipient-friendly (e.g. "Contract_Details").
         """
         if attachment_alias and not self.is_valid_file_alias(attachment_alias):
             raise ValueError(
@@ -171,12 +186,38 @@ class MailClient:
                 "method (e.g. a pandas DataFrame)"
             )
 
-        if len(content_bytes) > MAX_INLINE_ATTACHMENT_BYTES:
+        if len(content_bytes) > MAX_ATTACHMENT_BYTES:
             raise ValueError(
-                f'Attachment "{filename}" exceeds the {MAX_INLINE_ATTACHMENT_BYTES} '
-                "byte limit for inline Graph attachments"
+                f'Attachment "{filename}" ({len(content_bytes)} bytes) exceeds the '
+                f"{MAX_ATTACHMENT_BYTES} byte Graph attachment limit"
             )
 
+        return filename, content_bytes
+
+    def _normalize_attachments(self, attachment, attachment_alias, attachments):
+        """
+        Collapses the single-attachment args and the optional `attachments` list
+        into one list of (filename, content_bytes) tuples.
+
+        Each element of `attachments` is either:
+          - a filepath (str) or DataFrame-like object, or
+          - a dict {"attachment": <filepath|DataFrame>, "alias": <str>}.
+        """
+        specs = []
+        if attachment is not None:
+            specs.append(self._read_attachment(attachment, attachment_alias))
+        for item in attachments or []:
+            if isinstance(item, dict):
+                specs.append(
+                    self._read_attachment(item.get("attachment"), item.get("alias"))
+                )
+            else:
+                specs.append(self._read_attachment(item))
+        return specs
+
+    @staticmethod
+    def _build_inline_attachment(filename: str, content_bytes: bytes) -> dict:
+        """Builds a Graph inline fileAttachment dict (base64-encoded content)."""
         return {
             "@odata.type": "#microsoft.graph.fileAttachment",
             "name": filename,
@@ -191,6 +232,12 @@ class MailClient:
             if e.strip()
         ]
 
+    def _auth_headers(self) -> dict:
+        return {
+            "Authorization": f"Bearer {self._access_token}",
+            "Content-Type": "application/json",
+        }
+
     def send_email(
         self,
         sender_email: str,
@@ -200,6 +247,7 @@ class MailClient:
         cc_email: str = None,
         attachment=None,
         attachment_alias: str = None,
+        attachments: list = None,
         body_type: str = "HTML",
         save_to_sent_items: bool = False,
     ) -> bool:
@@ -208,13 +256,19 @@ class MailClient:
 
         sender_email must be a mailbox the app registration is authorized to send
         as. receiver_email/cc_email accept comma-separated addresses.
-        attachment can be a filepath (str) or an object with a to_csv() method
-        (e.g. a pandas DataFrame). attachment_alias renames the attachment to
-        something more recipient-friendly (e.g. "Contract_Details").
         body_type is "HTML" or "Text".
-        """
-        import requests
 
+        Attachments: pass a single one via `attachment`/`attachment_alias`, and/or
+        several via `attachments` (a list of filepaths/DataFrames or dicts
+        {"attachment": ..., "alias": ...}). Each attachment is a filepath (str) or
+        an object with a to_csv() method (e.g. a pandas DataFrame).
+
+        Attachments totaling <= ~3 MB are sent inline in a single sendMail call.
+        Larger payloads automatically use a draft + chunked upload session so
+        individual attachments up to 150 MB are supported. Note: the upload-session
+        path always saves the message to the sender's Sent Items, so
+        save_to_sent_items is only honored on the inline sendMail path.
+        """
         if body_type not in ("HTML", "Text"):
             self.logger.error('body_type must be "HTML" or "Text"')
             return False
@@ -226,6 +280,9 @@ class MailClient:
                 self._validate_email_list(cc_email.split(","))
             if not subject:
                 raise ValueError("subject cannot be empty")
+            attachment_specs = self._normalize_attachments(
+                attachment, attachment_alias, attachments
+            )
         except ValueError as e:
             self.logger.error(e)
             return False
@@ -241,40 +298,155 @@ class MailClient:
         if cc_email:
             message["ccRecipients"] = self._to_recipient_list(cc_email)
 
-        attachment_label = None
-        if attachment is not None:
-            try:
-                file_attachment = self._build_attachment(attachment, attachment_alias)
-            except ValueError as e:
-                self.logger.error(e)
-                return False
-            message["attachments"] = [file_attachment]
-            attachment_label = file_attachment["name"]
-
         try:
             self._authenticate()
         except Exception:
             return False
 
+        total_bytes = sum(len(content) for _, content in attachment_specs)
+        attachment_names = ", ".join(name for name, _ in attachment_specs) or None
         self.logger.info(
             f"Preparing to send email via Graph: subject={subject}, sender={sender_email}, "
-            f"receiver={receiver_email}, cc={cc_email}, attachment={attachment_label}"
+            f"receiver={receiver_email}, cc={cc_email}, attachments={attachment_names}, "
+            f"total_attachment_bytes={total_bytes}"
         )
 
+        if total_bytes <= MAX_INLINE_ATTACHMENT_BYTES:
+            return self._send_via_send_mail(
+                sender_email, message, attachment_specs, save_to_sent_items
+            )
+        return self._send_via_upload_session(sender_email, message, attachment_specs)
+
+    def _send_via_send_mail(
+        self, sender_email, message, attachment_specs, save_to_sent_items
+    ) -> bool:
+        """Sends a message in a single sendMail call with inline attachments."""
+        import requests
+
+        if attachment_specs:
+            message = dict(message)
+            message["attachments"] = [
+                self._build_inline_attachment(name, content)
+                for name, content in attachment_specs
+            ]
+
         send_mail_url = f"{GRAPH_BASE_URL}/users/{sender_email}/sendMail"
-        headers = {
-            "Authorization": f"Bearer {self._access_token}",
-            "Content-Type": "application/json",
-        }
         payload = {"message": message, "saveToSentItems": save_to_sent_items}
 
+        response = None
         try:
-            response = requests.post(send_mail_url, headers=headers, json=payload)
+            response = requests.post(
+                send_mail_url, headers=self._auth_headers(), json=payload
+            )
             response.raise_for_status()
-            self.logger.info("Email sent successfully")
+            self.logger.info("Email sent successfully (sendMail)")
             return True
         except Exception as e:
             self.logger.error(f"Error occurred while sending the email: {e}")
-            if "response" in dir() and getattr(response, "text", None):
+            if response is not None and getattr(response, "text", None):
                 self.logger.error(response.text)
             return False
+
+    def _send_via_upload_session(self, sender_email, message, attachment_specs) -> bool:
+        """
+        Sends a message whose attachments are too large for a single sendMail
+        request. Creates a draft, attaches each file (inline for small, chunked
+        upload session for large), then sends the draft.
+        """
+        import requests
+
+        headers = self._auth_headers()
+
+        # 1. Create the draft message (without attachments).
+        create_url = f"{GRAPH_BASE_URL}/users/{sender_email}/messages"
+        response = None
+        try:
+            response = requests.post(create_url, headers=headers, json=message)
+            response.raise_for_status()
+            message_id = response.json()["id"]
+        except Exception as e:
+            self.logger.error(f"Failed to create Graph draft message: {e}")
+            if response is not None and getattr(response, "text", None):
+                self.logger.error(response.text)
+            return False
+
+        # 2. Attach each file to the draft.
+        for filename, content_bytes in attachment_specs:
+            try:
+                if len(content_bytes) <= MAX_INLINE_ATTACHMENT_BYTES:
+                    self._add_inline_attachment_to_draft(
+                        sender_email, message_id, filename, content_bytes
+                    )
+                else:
+                    self._upload_large_attachment(
+                        sender_email, message_id, filename, content_bytes
+                    )
+            except Exception as e:
+                self.logger.error(f'Failed to attach "{filename}" to draft: {e}')
+                return False
+
+        # 3. Send the draft.
+        send_url = f"{GRAPH_BASE_URL}/users/{sender_email}/messages/{message_id}/send"
+        response = None
+        try:
+            response = requests.post(send_url, headers=headers)
+            response.raise_for_status()
+            self.logger.info("Email sent successfully (upload session)")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to send Graph draft message: {e}")
+            if response is not None and getattr(response, "text", None):
+                self.logger.error(response.text)
+            return False
+
+    def _add_inline_attachment_to_draft(
+        self, sender_email, message_id, filename, content_bytes
+    ):
+        """Adds a small (<= 3 MB) attachment directly to an existing draft."""
+        import requests
+
+        url = (
+            f"{GRAPH_BASE_URL}/users/{sender_email}/messages/{message_id}/attachments"
+        )
+        body = self._build_inline_attachment(filename, content_bytes)
+        response = requests.post(url, headers=self._auth_headers(), json=body)
+        response.raise_for_status()
+
+    def _upload_large_attachment(
+        self, sender_email, message_id, filename, content_bytes
+    ):
+        """Uploads a large (> 3 MB) attachment to a draft via an upload session."""
+        import requests
+
+        size = len(content_bytes)
+
+        # Create the upload session.
+        session_url = (
+            f"{GRAPH_BASE_URL}/users/{sender_email}/messages/{message_id}"
+            "/attachments/createUploadSession"
+        )
+        body = {
+            "AttachmentItem": {
+                "attachmentType": "file",
+                "name": filename,
+                "size": size,
+            }
+        }
+        response = requests.post(session_url, headers=self._auth_headers(), json=body)
+        response.raise_for_status()
+        upload_url = response.json()["uploadUrl"]
+
+        # Upload the content in chunks. Every chunk except the last must be a
+        # multiple of 320 KiB. The upload URL is pre-authorized, so it takes no
+        # Authorization header.
+        start = 0
+        while start < size:
+            end = min(start + UPLOAD_CHUNK_SIZE, size)
+            chunk = content_bytes[start:end]
+            chunk_headers = {
+                "Content-Length": str(end - start),
+                "Content-Range": f"bytes {start}-{end - 1}/{size}",
+            }
+            response = requests.put(upload_url, headers=chunk_headers, data=chunk)
+            response.raise_for_status()
+            start = end
