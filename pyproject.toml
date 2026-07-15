@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cit-pydata"
-version = "0.0.2.dev7"
+version = "0.0.2.dev8"
 authors = [
   { name="Dionis Wang", email="dwang@eab.com" },{ name="Andrew Fitch", email="afitch@eab.com" },{ name="Dagim Desta", email="ddesta@eab.com" }
 ]
@@ -27,11 +27,11 @@ joblog = ["marketorestpython"]
 mailer = ["requests", "boto3"]
 salesforce = ["simple_salesforce","pyforce"]
 sftp = ["paramiko"]
-sql = ["SQLAlchemy<2.0", "numpy", "pandas"]
-sql-pyodbc = ["SQLAlchemy<2.0", "pyodbc", "numpy", "pandas"]
-sql-pymssql = ["SQLAlchemy<2.0", "pymssql", "numpy", "pandas"]
-sql-psycopg2 = ["SQLAlchemy<2.0", "psycopg2-binary", "numpy", "pandas"]
-sql-mssql = ["SQLAlchemy<2.0", "pymssql", "numpy", "pandas"]
-sql-postgres = ["SQLAlchemy<2.0", "psycopg2-binary", "numpy", "pandas"]
+sql = ["SQLAlchemy>=1.4.36,<2.0", "numpy<2.0", "pandas<2.0"]
+sql-pyodbc = ["SQLAlchemy>=1.4.36,<2.0", "pyodbc", "numpy<2.0", "pandas<2.0"]
+sql-pymssql = ["SQLAlchemy>=1.4.36,<2.0", "pymssql", "numpy<2.0", "pandas<2.0"]
+sql-psycopg2 = ["SQLAlchemy>=1.4.36,<2.0", "psycopg2-binary", "numpy<2.0", "pandas<2.0"]
+sql-mssql = ["SQLAlchemy>=1.4.36,<2.0", "pymssql", "numpy<2.0", "pandas<2.0"]
+sql-postgres = ["SQLAlchemy>=1.4.36,<2.0", "psycopg2-binary", "numpy<2.0", "pandas<2.0"]
 local = ["python-dotenv"]
-all = ["aws-lambda-powertools","pandas","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy<2.0", "pyodbc","pymssql", "numpy", "pandas","psycopg2-binary","python-dotenv", "boto3", "requests"]
+all = ["aws-lambda-powertools","pandas<2.0","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy>=1.4.36,<2.0", "pyodbc","pymssql", "numpy<2.0", "pandas<2.0","psycopg2-binary","python-dotenv", "boto3", "requests"]
