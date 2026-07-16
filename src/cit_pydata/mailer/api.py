@@ -32,14 +32,14 @@ class MailClient:
 
     Authenticates with the OAuth2 client-credentials flow using an app
     registration (tenant_id / client_id / client_secret) that has been granted
-    the application permission "Mail.Send". Those credentials are read from AWS
-    SSM Parameter Store as a JSON document, e.g.:
+    the application permission "Mail.Send". Those credentials are read from three
+    AWS SSM Parameter Store parameters under a common base path (the same
+    convention as the CorpIT mailer). For base path
+    "/eab-pydata/graphapp/python_mailer":
 
-        {
-            "tenant_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-            "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-            "client_secret": "xxxxxxxxxxxxxxxxxxxxxxxx"
-        }
+        /eab-pydata/graphapp/python_mailer/tenant_id       (String)
+        /eab-pydata/graphapp/python_mailer/client_id       (String)
+        /eab-pydata/graphapp/python_mailer/client_secret   (SecureString)
 
     A single MailClient can be reused to send multiple emails; the access token
     is fetched lazily on first send and reused.
@@ -47,7 +47,7 @@ class MailClient:
 
     def __init__(
         self,
-        ssm_parameter_name: str = "/eab-pydata/graph/config",
+        ssm_parameter_name: str = "/eab-pydata/graphapp/python_mailer",
         environment: str = None,
         iam_user: str = None,
         approved_senders: list = None,
@@ -55,6 +55,7 @@ class MailClient:
     ):
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
 
+        # Base SSM path holding the tenant_id / client_id / client_secret params.
         self.ssm_parameter_name = ssm_parameter_name
 
         # Only needed for local (non-AWS) auth; on AWS the execution role is used.
@@ -100,25 +101,25 @@ class MailClient:
             )
 
     def _get_graph_config(self) -> dict:
-        """Reads the Graph app-registration credentials JSON from SSM."""
-        import json
-
+        """Reads the Graph app-registration credentials from three SSM parameters
+        under the configured base path: {base}/tenant_id, {base}/client_id,
+        {base}/client_secret. with_decryption=True is safe for both String and
+        SecureString parameters."""
         ssm_client = aws_api.SSMClient(
             environment=self.aws_environment,
             iam_user=self.aws_iam_user,
             logger=self.logger,
         )
-        raw = ssm_client.get_parameter(
-            name=self.ssm_parameter_name, with_decryption=True
-        )
-        if not raw:
-            raise ValueError(
-                f'Graph config not found in SSM at "{self.ssm_parameter_name}"'
-            )
-        config = json.loads(raw)
+        base = self.ssm_parameter_name.rstrip("/")
+        config = {}
         for key in ("tenant_id", "client_id", "client_secret"):
-            if not config.get(key):
-                raise ValueError(f'Graph config is missing required key "{key}"')
+            parameter_name = f"{base}/{key}"
+            value = ssm_client.get_parameter(name=parameter_name, with_decryption=True)
+            if not value or not str(value).strip():
+                raise ValueError(
+                    f'Graph config parameter not found or empty in SSM: "{parameter_name}"'
+                )
+            config[key] = str(value).strip()
         return config
 
     def _authenticate(self):
@@ -300,7 +301,8 @@ class MailClient:
 
         try:
             self._authenticate()
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"Failed to authenticate to Microsoft Graph: {e}")
             return False
 
         total_bytes = sum(len(content) for _, content in attachment_specs)
