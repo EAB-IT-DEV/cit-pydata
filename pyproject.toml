@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cit-pydata"
-version = "0.0.2.dev8"
+version = "0.0.2.dev9"
 authors = [
   { name="Dionis Wang", email="dwang@eab.com" },{ name="Andrew Fitch", email="afitch@eab.com" },{ name="Dagim Desta", email="ddesta@eab.com" }
 ]
@@ -27,11 +27,18 @@ joblog = ["marketorestpython"]
 mailer = ["requests", "boto3"]
 salesforce = ["simple_salesforce","pyforce"]
 sftp = ["paramiko"]
-sql = ["SQLAlchemy>=1.4.36,<2.0", "numpy<2.0", "pandas<2.0"]
-sql-pyodbc = ["SQLAlchemy>=1.4.36,<2.0", "pyodbc", "numpy<2.0", "pandas<2.0"]
-sql-pymssql = ["SQLAlchemy>=1.4.36,<2.0", "pymssql", "numpy<2.0", "pandas<2.0"]
-sql-psycopg2 = ["SQLAlchemy>=1.4.36,<2.0", "psycopg2-binary", "numpy<2.0", "pandas<2.0"]
-sql-mssql = ["SQLAlchemy>=1.4.36,<2.0", "pymssql", "numpy<2.0", "pandas<2.0"]
-sql-postgres = ["SQLAlchemy>=1.4.36,<2.0", "psycopg2-binary", "numpy<2.0", "pandas<2.0"]
+sql = ["SQLAlchemy>=1.4.36,<2.0", "numpy<2.0", "pandas>=2.1.1,<2.2"]
+sql-pyodbc = ["SQLAlchemy>=1.4.36,<2.0", "pyodbc", "numpy<2.0", "pandas>=2.1.1,<2.2"]
+sql-pymssql = ["SQLAlchemy>=1.4.36,<2.0", "pymssql", "numpy<2.0", "pandas>=2.1.1,<2.2"]
+sql-psycopg2 = ["SQLAlchemy>=1.4.36,<2.0", "psycopg2-binary", "numpy<2.0", "pandas>=2.1.1,<2.2"]
+sql-mssql = ["SQLAlchemy>=1.4.36,<2.0", "pymssql", "numpy<2.0", "pandas>=2.1.1,<2.2"]
+sql-postgres = ["SQLAlchemy>=1.4.36,<2.0", "psycopg2-binary", "numpy<2.0", "pandas>=2.1.1,<2.2"]
+# SQL dependency window (do not widen without testing on Python 3.12):
+#   * sql/api.py uses SQLAlchemy 1.x-only APIs (MetaData(bind=...)) -> SQLAlchemy<2.0
+#   * pandas>=2.2 requires SQLAlchemy>=2.0 for read_sql; pairing it with SQLAlchemy<2.0
+#     makes pandas silently fall back to a raw-DBAPI2 path and call .cursor() on the
+#     Engine -> AttributeError. So pandas must stay <2.2.
+#   * pandas<2.1.1 has no cp312 wheels (source build fails in CodeBuild) -> pandas>=2.1.1.
+#   * numpy<2.0 is ABI-matched to pandas 2.1.x.
 local = ["python-dotenv"]
-all = ["aws-lambda-powertools","pandas<2.0","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy>=1.4.36,<2.0", "pyodbc","pymssql", "numpy<2.0", "pandas<2.0","psycopg2-binary","python-dotenv", "boto3", "requests"]
+all = ["aws-lambda-powertools","pandas>=2.1.1,<2.2","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy>=1.4.36,<2.0", "pyodbc","pymssql", "numpy<2.0", "pandas>=2.1.1,<2.2","psycopg2-binary","python-dotenv", "boto3", "requests"]
