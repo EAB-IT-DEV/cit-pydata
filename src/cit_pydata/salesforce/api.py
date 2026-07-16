@@ -450,12 +450,31 @@ class SalesforceClient:
 
         file_extension filters case-insensitively (e.g. "pdf"). latest_only keeps
         just the current published version of each file.
+
+        Implemented as two queries: ContentDocumentLink cannot be used in a SOQL
+        semi-join inner select ("Entity 'ContentDocumentLink' is not supported for
+        semi join inner selects"), so we first resolve the linked ContentDocumentIds
+        directly, then query ContentVersion against an explicit id list.
         """
-        conditions = [
-            "ContentDocumentId IN "
-            "(SELECT ContentDocumentId FROM ContentDocumentLink "
-            f"WHERE LinkedEntityId = '{linked_entity_id}')"
-        ]
+        import pandas
+
+        # Step 1: resolve the ContentDocumentIds linked to the entity. A direct
+        # query filtered by LinkedEntityId is allowed (semi-join is not).
+        link_soql = (
+            "SELECT ContentDocumentId FROM ContentDocumentLink "
+            f"WHERE LinkedEntityId = '{linked_entity_id}'"
+        )
+        links_df = self.get_dataframe_soql(link_soql)
+        if links_df is None or links_df.empty:
+            return pandas.DataFrame()
+
+        content_document_ids = links_df["ContentDocumentId"].dropna().unique().tolist()
+        if not content_document_ids:
+            return pandas.DataFrame()
+
+        # Step 2: query ContentVersion by explicit ContentDocumentId list.
+        id_list = ", ".join(f"'{cid}'" for cid in content_document_ids)
+        conditions = [f"ContentDocumentId IN ({id_list})"]
         if latest_only:
             conditions.append("IsLatest = true")
         if file_extension:
