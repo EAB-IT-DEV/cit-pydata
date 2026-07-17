@@ -759,6 +759,8 @@ class SQLClient:
         on_conflict="DO NOTHING",
         chunksize=None,
         thread_id=0,
+        exclude_columns_on_conflict_update=[],
+        echo=True,
     ):
         # Increases load speed to postgres for large tables
         on_conflict = on_conflict.replace("_", " ").upper()
@@ -814,6 +816,18 @@ class SQLClient:
             CREATE TABLE {schema_tmp_table_name}
             (LIKE {schema_table_name} INCLUDING DEFAULTS)
         """
+        if on_conflict == "DO UPDATE":
+            conflict_condition = ",".join([f'"{col}"' for col in index])
+            update_columns = [
+                col
+                for col in list(df.columns)
+                if col not in index
+                and col not in list(exclude_columns_on_conflict_update)
+            ]
+            set_clause = ", ".join(
+                f'"{col}" = EXCLUDED."{col}"' for col in update_columns
+            )
+            on_conflict = f"({conflict_condition}) DO UPDATE SET {set_clause}"
         insert_temp_table_to_main_sql = f"""
             INSERT INTO {schema_table_name}({column_names})
             SELECT {column_names}
@@ -851,7 +865,7 @@ class SQLClient:
                 )
             self.sql_engine.execute(insert_temp_table_to_main_sql)
             self.sql_engine.execute(cleanup_temp_tabl_sql)
-            if self.logger:
+            if self.logger and echo:
                 diff = time.time() - s
                 self.logger.info(
                     f"Inserted dataframe to table {table_name} with shape: {df.shape}."
@@ -869,6 +883,11 @@ class SQLClient:
             self.sql_engine.execute(cleanup_temp_tabl_sql)
             raise e
             # return False
+
+    def unicode_escape(self, value):
+        if isinstance(value, str):
+            return value.encode("unicode_escape").decode("utf-8")
+        return value
 
     def to_int(self, x):
         return f"{x:.0f}" if x is not None else ""
@@ -978,3 +997,43 @@ class SQLClient:
                 self.logger.error(f"Failed to execute SQL {str(e)}")
                 return False
         return True
+
+    # Check SQL Server job status
+    def check_sql_server_job(self, job_name, start_time, seconds):
+        """
+        Check status of a job;
+        timeout after a number of seconds
+
+        Return result, status for tbl_RunLog (e.g. 'Success','Complete' or 'Failed','{log_message}')
+        """
+        job_query = (
+            "SELECT TOP 1 hist.run_status as most_recent_run_status "
+            "FROM msdb.dbo.sysjobactivity act "
+            "LEFT JOIN msdb.dbo.sysjobhistory hist ON hist.instance_id = act.job_history_id "
+            "INNER JOIN msdb.dbo.sysjobs job ON job.job_id = act.job_id "
+            f"WHERE job.name = '{job_name}' AND act.run_requested_date > '{start_time}'"
+            "ORDER BY hist.run_date DESC, hist.run_time DESC "
+        )
+
+        # self.logger.info(f'Checking Job status')
+        start_time = time.time()
+
+        while True:
+            df = self.get_dataframe_query(job_query)
+            most_recent_run_status = df["most_recent_run_status"].iloc[0]
+
+            if most_recent_run_status == 1:
+                return "Success", "Complete"
+            elif most_recent_run_status == 0:
+                log_error = (
+                    f"{job_name} failed to execute successfully. Check SQL logs."
+                )
+                return "Failed", log_error
+            elif time.time() - start_time > seconds:
+                log_error = f"{job_name} did not finish within {seconds} seconds. Check SQL logs."
+                return "Failed", log_error
+            else:
+                self.logger.info(
+                    f"{job_name} is still running. Waiting for 120 seconds..."
+                )
+                time.sleep(120)

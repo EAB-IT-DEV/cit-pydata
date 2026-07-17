@@ -20,6 +20,22 @@ MAX_ATTACHMENT_BYTES = 150 * 1024 * 1024
 # of 320 KiB per the Graph API.
 UPLOAD_CHUNK_SIZE = 12 * 320 * 1024  # 3,932,160 bytes (~3.75 MiB)
 
+# Default per-request timeout (seconds) applied to every Graph/token HTTP call so
+# a hung connection can never block a job indefinitely. Override with the
+# GRAPH_REQUEST_TIMEOUT_SECONDS environment variable.
+DEFAULT_TIMEOUT_SECONDS = 60
+# Refresh the cached access token this many seconds before it actually expires,
+# so a long-lived MailClient never sends with an almost-expired token.
+TOKEN_REFRESH_SAFETY_SECONDS = 120
+
+# Senders allowed by default when the caller does not pass an explicit
+# approved_senders list. Microsoft Graph application permissions can be broad;
+# this guard prevents callers from accidentally sending as arbitrary mailboxes.
+DEFAULT_APPROVED_SENDERS = [
+    "CorpIT_DICommunications@eab.com",
+    "sfadmin@eab.com",
+]
+
 
 class MailClient:
     """
@@ -41,8 +57,14 @@ class MailClient:
         /eab-pydata/graphapp/python_mailer/client_id       (String)
         /eab-pydata/graphapp/python_mailer/client_secret   (SecureString)
 
+    Each credential can also be supplied via environment variable (checked before
+    SSM) for local development or emergency override:
+        tenant_id:     GRAPH_TENANT_ID / MS_GRAPH_TENANT_ID / AZURE_TENANT_ID / AAD_TENANT_ID
+        client_id:     GRAPH_CLIENT_ID / MS_GRAPH_CLIENT_ID / AZURE_CLIENT_ID / AAD_CLIENT_ID
+        client_secret: GRAPH_CLIENT_SECRET / MS_GRAPH_CLIENT_SECRET / AZURE_CLIENT_SECRET / AAD_CLIENT_SECRET
+
     A single MailClient can be reused to send multiple emails; the access token
-    is fetched lazily on first send and reused.
+    is fetched lazily on first send and refreshed automatically before it expires.
     """
 
     def __init__(
@@ -53,6 +75,8 @@ class MailClient:
         approved_senders: list = None,
         logger=None,
     ):
+        import requests
+
         self.logger = util_api.get_logger(__name__, "INFO") if not logger else logger
 
         # Base SSM path holding the tenant_id / client_id / client_secret params.
@@ -66,13 +90,25 @@ class MailClient:
             logger=self.logger, variable_name="aws_auth_iam_user"
         )
 
-        # When set, sender_email must match one of these (case-insensitive). None skips the check.
-        self.approved_senders = (
-            [s.lower() for s in approved_senders] if approved_senders else None
-        )
+        # sender_email must match one of these (case-insensitive). When the caller
+        # does not supply a list, DEFAULT_APPROVED_SENDERS is enforced so a sender
+        # whitelist is always applied.
+        self.approved_senders = [
+            s.lower() for s in (approved_senders or DEFAULT_APPROVED_SENDERS)
+        ]
 
-        # Fetched lazily on first send.
+        # Per-request timeout and upload-retry budget (env-configurable).
+        self.request_timeout_seconds = int(
+            os.getenv("GRAPH_REQUEST_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS))
+        )
+        self.max_upload_retries = int(os.getenv("GRAPH_UPLOAD_MAX_RETRIES", "3"))
+
+        # Reuse one Session for connection pooling / keep-alive across calls.
+        self.session = requests.Session()
+
+        # Fetched lazily on first send and refreshed before expiry.
         self._access_token = None
+        self._access_token_expires_at = 0.0
 
     @staticmethod
     def is_valid_email(email: str) -> bool:
@@ -101,32 +137,83 @@ class MailClient:
             )
 
     def _get_graph_config(self) -> dict:
-        """Reads the Graph app-registration credentials from three SSM parameters
-        under the configured base path: {base}/tenant_id, {base}/client_id,
+        """Reads the Graph app-registration credentials.
+
+        For each of tenant_id / client_id / client_secret the value is taken from
+        an environment variable if set (local dev / emergency override), otherwise
+        from SSM under the configured base path: {base}/tenant_id, {base}/client_id,
         {base}/client_secret. with_decryption=True is safe for both String and
-        SecureString parameters."""
-        ssm_client = aws_api.SSMClient(
-            environment=self.aws_environment,
-            iam_user=self.aws_iam_user,
-            logger=self.logger,
-        )
+        SecureString parameters. The SSM client is only built if at least one value
+        must be read from SSM, so a fully env-configured caller needs no AWS auth.
+        """
+        env_names = {
+            "tenant_id": (
+                "GRAPH_TENANT_ID",
+                "MS_GRAPH_TENANT_ID",
+                "AZURE_TENANT_ID",
+                "AAD_TENANT_ID",
+            ),
+            "client_id": (
+                "GRAPH_CLIENT_ID",
+                "MS_GRAPH_CLIENT_ID",
+                "AZURE_CLIENT_ID",
+                "AAD_CLIENT_ID",
+            ),
+            "client_secret": (
+                "GRAPH_CLIENT_SECRET",
+                "MS_GRAPH_CLIENT_SECRET",
+                "AZURE_CLIENT_SECRET",
+                "AAD_CLIENT_SECRET",
+            ),
+        }
+
         base = self.ssm_parameter_name.rstrip("/")
         config = {}
+        ssm_client = None
         for key in ("tenant_id", "client_id", "client_secret"):
-            parameter_name = f"{base}/{key}"
-            value = ssm_client.get_parameter(name=parameter_name, with_decryption=True)
-            if not value or not str(value).strip():
-                raise ValueError(
-                    f'Graph config parameter not found or empty in SSM: "{parameter_name}"'
+            # 1. Environment variable override.
+            value = None
+            for env_name in env_names[key]:
+                value = os.getenv(env_name)
+                if value:
+                    self.logger.debug(
+                        f"Loaded Graph credential '{key}' from environment variable '{env_name}'"
+                    )
+                    break
+
+            # 2. Fall back to SSM.
+            if not value:
+                if ssm_client is None:
+                    ssm_client = aws_api.SSMClient(
+                        environment=self.aws_environment,
+                        iam_user=self.aws_iam_user,
+                        logger=self.logger,
+                    )
+                parameter_name = f"{base}/{key}"
+                value = ssm_client.get_parameter(
+                    name=parameter_name, with_decryption=True
                 )
+                if not value or not str(value).strip():
+                    raise ValueError(
+                        f'Graph config parameter not found or empty in SSM: "{parameter_name}"'
+                    )
+
             config[key] = str(value).strip()
         return config
 
     def _authenticate(self):
-        """Fetches and caches an OAuth2 access token via the client-credentials flow."""
-        import requests
+        """Fetches and caches an OAuth2 access token via the client-credentials flow.
 
-        if self._access_token is not None:
+        The token is refreshed automatically once it is within
+        TOKEN_REFRESH_SAFETY_SECONDS of expiry, so a reused MailClient never sends
+        with a stale token.
+        """
+        import time
+
+        now = time.time()
+        if self._access_token is not None and now < (
+            self._access_token_expires_at - TOKEN_REFRESH_SAFETY_SECONDS
+        ):
             return
 
         config = self._get_graph_config()
@@ -141,7 +228,9 @@ class MailClient:
             "scope": "https://graph.microsoft.com/.default",
         }
 
-        response = requests.post(token_url, data=payload)
+        response = self.session.post(
+            token_url, data=payload, timeout=self.request_timeout_seconds
+        )
         try:
             response.raise_for_status()
         except Exception as e:
@@ -149,17 +238,26 @@ class MailClient:
             self.logger.error(response.text)
             raise
 
-        self._access_token = response.json().get("access_token")
+        token_payload = response.json()
+        self._access_token = token_payload.get("access_token")
         if not self._access_token:
-            raise ValueError("Microsoft Graph token response did not include an access_token")
+            raise ValueError(
+                "Microsoft Graph token response did not include an access_token"
+            )
+        self._access_token_expires_at = now + int(
+            token_payload.get("expires_in", 3599)
+        )
 
-    def _read_attachment(self, attachment, attachment_alias: str = None):
+    def _read_attachment(
+        self, attachment, attachment_alias: str = None, compression: bool = False
+    ):
         """
         Reads an attachment and returns a (filename, content_bytes) tuple.
 
         `attachment` is a filepath (str) or an object exposing to_csv() (e.g. a
         pandas DataFrame). `attachment_alias` renames the attachment to something
-        more recipient-friendly (e.g. "Contract_Details").
+        more recipient-friendly (e.g. "Contract_Details"). When `compression` is
+        True the content is gzip-compressed and ".gz" is appended to the filename.
         """
         if attachment_alias and not self.is_valid_file_alias(attachment_alias):
             raise ValueError(
@@ -187,6 +285,12 @@ class MailClient:
                 "method (e.g. a pandas DataFrame)"
             )
 
+        if compression:
+            import gzip
+
+            content_bytes = gzip.compress(content_bytes)
+            filename = filename + ".gz"
+
         if len(content_bytes) > MAX_ATTACHMENT_BYTES:
             raise ValueError(
                 f'Attachment "{filename}" ({len(content_bytes)} bytes) exceeds the '
@@ -195,7 +299,9 @@ class MailClient:
 
         return filename, content_bytes
 
-    def _normalize_attachments(self, attachment, attachment_alias, attachments):
+    def _normalize_attachments(
+        self, attachment, attachment_alias, attachments, compression: bool = False
+    ):
         """
         Collapses the single-attachment args and the optional `attachments` list
         into one list of (filename, content_bytes) tuples.
@@ -203,17 +309,23 @@ class MailClient:
         Each element of `attachments` is either:
           - a filepath (str) or DataFrame-like object, or
           - a dict {"attachment": <filepath|DataFrame>, "alias": <str>}.
+
+        `compression` (when True) gzip-compresses every attachment.
         """
         specs = []
         if attachment is not None:
-            specs.append(self._read_attachment(attachment, attachment_alias))
+            specs.append(
+                self._read_attachment(attachment, attachment_alias, compression)
+            )
         for item in attachments or []:
             if isinstance(item, dict):
                 specs.append(
-                    self._read_attachment(item.get("attachment"), item.get("alias"))
+                    self._read_attachment(
+                        item.get("attachment"), item.get("alias"), compression
+                    )
                 )
             else:
-                specs.append(self._read_attachment(item))
+                specs.append(self._read_attachment(item, None, compression))
         return specs
 
     @staticmethod
@@ -251,6 +363,7 @@ class MailClient:
         attachments: list = None,
         body_type: str = "HTML",
         save_to_sent_items: bool = False,
+        compression: bool = False,
     ) -> bool:
         """
         Sends an email via Microsoft Graph. Returns True on success, False on failure.
@@ -262,7 +375,8 @@ class MailClient:
         Attachments: pass a single one via `attachment`/`attachment_alias`, and/or
         several via `attachments` (a list of filepaths/DataFrames or dicts
         {"attachment": ..., "alias": ...}). Each attachment is a filepath (str) or
-        an object with a to_csv() method (e.g. a pandas DataFrame).
+        an object with a to_csv() method (e.g. a pandas DataFrame). When
+        `compression` is True every attachment is gzip-compressed (".gz" appended).
 
         Attachments totaling <= ~3 MB are sent inline in a single sendMail call.
         Larger payloads automatically use a draft + chunked upload session so
@@ -282,7 +396,7 @@ class MailClient:
             if not subject:
                 raise ValueError("subject cannot be empty")
             attachment_specs = self._normalize_attachments(
-                attachment, attachment_alias, attachments
+                attachment, attachment_alias, attachments, compression
             )
         except ValueError as e:
             self.logger.error(e)
@@ -310,7 +424,7 @@ class MailClient:
         self.logger.info(
             f"Preparing to send email via Graph: subject={subject}, sender={sender_email}, "
             f"receiver={receiver_email}, cc={cc_email}, attachments={attachment_names}, "
-            f"total_attachment_bytes={total_bytes}"
+            f"total_attachment_bytes={total_bytes}, compression={compression}"
         )
 
         if total_bytes <= MAX_INLINE_ATTACHMENT_BYTES:
@@ -323,8 +437,6 @@ class MailClient:
         self, sender_email, message, attachment_specs, save_to_sent_items
     ) -> bool:
         """Sends a message in a single sendMail call with inline attachments."""
-        import requests
-
         if attachment_specs:
             message = dict(message)
             message["attachments"] = [
@@ -337,8 +449,11 @@ class MailClient:
 
         response = None
         try:
-            response = requests.post(
-                send_mail_url, headers=self._auth_headers(), json=payload
+            response = self.session.post(
+                send_mail_url,
+                headers=self._auth_headers(),
+                json=payload,
+                timeout=self.request_timeout_seconds,
             )
             response.raise_for_status()
             self.logger.info("Email sent successfully (sendMail)")
@@ -353,17 +468,22 @@ class MailClient:
         """
         Sends a message whose attachments are too large for a single sendMail
         request. Creates a draft, attaches each file (inline for small, chunked
-        upload session for large), then sends the draft.
+        upload session for large), then sends the draft. If attaching or sending
+        fails after the draft is created, the draft is deleted so failed jobs do
+        not leave orphaned messages in Drafts.
         """
-        import requests
-
         headers = self._auth_headers()
 
         # 1. Create the draft message (without attachments).
         create_url = f"{GRAPH_BASE_URL}/users/{sender_email}/messages"
         response = None
         try:
-            response = requests.post(create_url, headers=headers, json=message)
+            response = self.session.post(
+                create_url,
+                headers=headers,
+                json=message,
+                timeout=self.request_timeout_seconds,
+            )
             response.raise_for_status()
             message_id = response.json()["id"]
         except Exception as e:
@@ -372,9 +492,9 @@ class MailClient:
                 self.logger.error(response.text)
             return False
 
-        # 2. Attach each file to the draft.
-        for filename, content_bytes in attachment_specs:
-            try:
+        try:
+            # 2. Attach each file to the draft.
+            for filename, content_bytes in attachment_specs:
                 if len(content_bytes) <= MAX_INLINE_ATTACHMENT_BYTES:
                     self._add_inline_attachment_to_draft(
                         sender_email, message_id, filename, content_bytes
@@ -383,15 +503,14 @@ class MailClient:
                     self._upload_large_attachment(
                         sender_email, message_id, filename, content_bytes
                     )
-            except Exception as e:
-                self.logger.error(f'Failed to attach "{filename}" to draft: {e}')
-                return False
 
-        # 3. Send the draft.
-        send_url = f"{GRAPH_BASE_URL}/users/{sender_email}/messages/{message_id}/send"
-        response = None
-        try:
-            response = requests.post(send_url, headers=headers)
+            # 3. Send the draft.
+            send_url = (
+                f"{GRAPH_BASE_URL}/users/{sender_email}/messages/{message_id}/send"
+            )
+            response = self.session.post(
+                send_url, headers=headers, timeout=self.request_timeout_seconds
+            )
             response.raise_for_status()
             self.logger.info("Email sent successfully (upload session)")
             return True
@@ -399,27 +518,46 @@ class MailClient:
             self.logger.error(f"Failed to send Graph draft message: {e}")
             if response is not None and getattr(response, "text", None):
                 self.logger.error(response.text)
+            # Clean up the created-but-unsent draft.
+            self._delete_draft(sender_email, message_id)
             return False
+
+    def _delete_draft(self, sender_email, message_id):
+        """Best-effort deletion of a draft left behind by a failed send."""
+        try:
+            delete_url = (
+                f"{GRAPH_BASE_URL}/users/{sender_email}/messages/{message_id}"
+            )
+            self.session.delete(
+                delete_url,
+                headers=self._auth_headers(),
+                timeout=self.request_timeout_seconds,
+            )
+        except Exception as cleanup_exc:
+            self.logger.warning(
+                f"Unable to delete failed draft message after Graph send failure: {cleanup_exc}"
+            )
 
     def _add_inline_attachment_to_draft(
         self, sender_email, message_id, filename, content_bytes
     ):
         """Adds a small (<= 3 MB) attachment directly to an existing draft."""
-        import requests
-
         url = (
             f"{GRAPH_BASE_URL}/users/{sender_email}/messages/{message_id}/attachments"
         )
         body = self._build_inline_attachment(filename, content_bytes)
-        response = requests.post(url, headers=self._auth_headers(), json=body)
+        response = self.session.post(
+            url,
+            headers=self._auth_headers(),
+            json=body,
+            timeout=self.request_timeout_seconds,
+        )
         response.raise_for_status()
 
     def _upload_large_attachment(
         self, sender_email, message_id, filename, content_bytes
     ):
         """Uploads a large (> 3 MB) attachment to a draft via an upload session."""
-        import requests
-
         size = len(content_bytes)
 
         # Create the upload session.
@@ -434,13 +572,18 @@ class MailClient:
                 "size": size,
             }
         }
-        response = requests.post(session_url, headers=self._auth_headers(), json=body)
+        response = self.session.post(
+            session_url,
+            headers=self._auth_headers(),
+            json=body,
+            timeout=self.request_timeout_seconds,
+        )
         response.raise_for_status()
         upload_url = response.json()["uploadUrl"]
 
         # Upload the content in chunks. Every chunk except the last must be a
         # multiple of 320 KiB. The upload URL is pre-authorized, so it takes no
-        # Authorization header.
+        # Authorization header. Chunk PUTs are retried on transient errors.
         start = 0
         while start < size:
             end = min(start + UPLOAD_CHUNK_SIZE, size)
@@ -449,6 +592,49 @@ class MailClient:
                 "Content-Length": str(end - start),
                 "Content-Range": f"bytes {start}-{end - 1}/{size}",
             }
-            response = requests.put(upload_url, headers=chunk_headers, data=chunk)
+            response = self._put_upload_chunk_with_retry(
+                upload_url, chunk, chunk_headers
+            )
             response.raise_for_status()
             start = end
+
+    def _put_upload_chunk_with_retry(self, upload_url, chunk, headers):
+        """PUTs a single upload-session chunk, retrying on transient HTTP errors
+        (408/429/5xx) up to self.max_upload_retries, honoring Retry-After."""
+        import time
+
+        retryable_statuses = {408, 429, 500, 502, 503, 504}
+        attempt = 0
+
+        while True:
+            response = self.session.put(
+                upload_url,
+                headers=headers,
+                data=chunk,
+                timeout=self.request_timeout_seconds,
+            )
+
+            if response.status_code not in retryable_statuses:
+                return response
+
+            attempt += 1
+            if attempt > self.max_upload_retries:
+                return response
+
+            retry_after = self._retry_after_seconds(response, attempt)
+            self.logger.warning(
+                f"Retrying Graph attachment upload chunk after HTTP "
+                f"{response.status_code}; attempt {attempt} of "
+                f"{self.max_upload_retries}; sleeping {retry_after:.1f} seconds"
+            )
+            time.sleep(retry_after)
+
+    @staticmethod
+    def _retry_after_seconds(response, attempt: int) -> float:
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                return max(float(retry_after), 0.0)
+            except ValueError:
+                pass
+        return min(2 ** attempt, 30)

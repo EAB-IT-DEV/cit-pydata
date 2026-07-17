@@ -136,6 +136,35 @@ class SFTPClient:
 
         return True
 
+    def list_files_in_sftp(self, folder_path, suffix=None, auto_close=True):
+        """List files in the specified SFTP folder.
+        If suffix is provided, only files with that suffix will be listed.
+        Returns a list of file names or an empty list if an error occurs.
+        Default behavior is to automatically close the connection after listing."""
+        if self.sftp_session is None:
+            connected = self._connect()
+            if not connected:
+                return []
+
+        try:
+            try:
+                files = self.sftp_session.listdir(folder_path)
+            except FileNotFoundError:
+                self.logger.error(f"Folder path {folder_path} does not exist.")
+                return []
+
+            # Filter files based on suffix if provided
+            if suffix:
+                files = [f for f in files if f.endswith(suffix)]
+
+            return files
+        except Exception as e:
+            self.logger.error(f"Error listing files in {folder_path}: {e}")
+            return []
+        finally:
+            if auto_close:
+                self._close_connection()
+
     def load_file_to_sftp(
         self,
         target_folder_path,
@@ -353,6 +382,65 @@ class SFTPClient:
         finally:
             if auto_close:
                 self._close_connection()
+
+    def move_file_on_sftp(
+        self, source_folder_path, source_file_name, target_folder_path
+    ):
+        """Move a single file from the source folder on the SFTP server
+        to the target folder on the SFTP server.
+        Returns True if the file move is successful, False otherwise.
+        """
+        if self.sftp_session is None:
+            connected = self._connect()
+            if not connected:
+                return False  # Connection failure already logged in _connect()
+
+        try:
+            # Ensure source folder exists
+            try:
+                self.sftp_session.chdir(source_folder_path)
+            except FileNotFoundError:
+                self.logger.error(
+                    f"Source folder '{source_folder_path}' does not exist on the SFTP server."
+                )
+                return False
+
+            # Ensure source file exists
+            source_file_path = f"{source_folder_path}/{source_file_name}"
+            try:
+                self.sftp_session.stat(source_file_path)
+            except FileNotFoundError:
+                self.logger.error(
+                    f"Source file '{source_file_name}' does not exist in '{source_folder_path}'."
+                )
+                return False
+
+            # Ensure target folder exists or create it
+            try:
+                self.sftp_session.chdir(target_folder_path)
+            except FileNotFoundError:
+                self.logger.info(
+                    f"Target folder '{target_folder_path}' does not exist. Creating it..."
+                )
+                try:
+                    self.sftp_session.mkdir(target_folder_path)
+                except Exception as error:
+                    self.logger.error(
+                        f"Failed to create target folder '{target_folder_path}': {error}"
+                    )
+                    return False
+
+            # Move the file
+            target_file_path = f"{target_folder_path}/{source_file_name}"
+            self.sftp_session.rename(source_file_path, target_file_path)
+            self.logger.info(
+                f"Successfully moved '{source_file_name}' from '{source_folder_path}' to '{target_folder_path}'."
+            )
+            return True
+
+        except Exception as error:
+            self.logger.error(f"Error moving file on SFTP: {error}")
+            return False
 
     def _close_connection(self):
         # Close the SFTP session
