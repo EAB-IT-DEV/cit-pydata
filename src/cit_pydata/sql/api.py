@@ -356,7 +356,7 @@ class SQLClient:
         if self.dialect == "pymssql":
             self.logger.info(f'Executing SQL "{sql_statement}"')
             with Session(self.sql_engine) as session:
-                session.execute(sql_statement)
+                session.execute(text(sql_statement))
                 session.commit()
 
         elif self.dialect == "pyodbc":
@@ -377,9 +377,8 @@ class SQLClient:
         elif self.dialect == "psycopg2":
             self.logger.info(f"Executing SQL '{sql_statement}'")
             try:
-                self.sql_engine.execute(
-                    text(sql_statement).execution_options(autocommit=True)
-                )
+                with self.sql_engine.begin() as connection:
+                    connection.execute(text(sql_statement))
             except Exception as e:
                 self.logger.error(f"Failed to execute SQL {str(e)}")
 
