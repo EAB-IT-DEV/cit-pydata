@@ -510,6 +510,37 @@ class SQLClient:
         sql_statement = f"TRUNCATE TABLE {table_name}"
         self.execute_sql(sql_statement)
 
+    def start_sql_server_job(self, job_name) -> bool:
+        """Starts a SQL Server Agent job by name via msdb.dbo.sp_start_job.
+
+        sp_start_job is asynchronous: it asks SQL Agent to start the job and
+        returns immediately without waiting for the job to finish. Only valid on
+        SQL Server connections (pymssql/pyodbc). Uses a bound parameter so the
+        correct DBAPI paramstyle is rendered per dialect.
+
+        Returns True if the job was started, False otherwise.
+        """
+        if self.dialect not in ("pymssql", "pyodbc"):
+            self.logger.error(
+                f"start_sql_server_job requires a SQL Server dialect "
+                f"(pymssql/pyodbc); got '{self.dialect}'"
+            )
+            return False
+
+        try:
+            with self.sql_engine.begin() as connection:
+                connection.execute(
+                    text("EXEC msdb.dbo.sp_start_job @job_name = :job_name"),
+                    {"job_name": job_name},
+                )
+            self.logger.info(f"SQL Server Job '{job_name}' started successfully.")
+            return True
+        except Exception as e:
+            self.logger.error(
+                f"Error starting SQL Server Job '{job_name}': {str(e)}"
+            )
+            return False
+
     # def get_table_count(self, table_name):
     #     sql_statement = f'SELECT count(*) as count FROM {table_name}'
     #     dataframe = self.execute_sql_select(self.sql_engine, sql_statement)
