@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cit-pydata"
-version = "0.0.2.dev14"
+version = "1.0.0"
 authors = [
   { name="Dionis Wang", email="dwang@eab.com" },{ name="Andrew Fitch", email="afitch@eab.com" },{ name="Dagim Desta", email="ddesta@eab.com" }
 ]
@@ -41,7 +41,7 @@ sql-postgres = ["SQLAlchemy>=1.4.36,<2.0", "psycopg2-binary", "numpy<2.0", "pand
 #   * pandas<2.1.1 has no cp312 wheels (source build fails in CodeBuild) -> pandas>=2.1.1.
 #   * numpy<2.0 is ABI-matched to pandas 2.1.x.
 local = ["python-dotenv"]
-test = ["pytest"]
+test = ["pytest", "requests", "boto3", "SQLAlchemy>=1.4.36,<2.0", "numpy<2.0", "pandas>=2.1.1,<2.2"]
 all = ["aws-lambda-powertools","pandas>=2.1.1,<2.2","boxsdk","marketorestpython","simple_salesforce","pyforce","paramiko","SQLAlchemy>=1.4.36,<2.0", "pyodbc","pymssql", "numpy<2.0", "pandas>=2.1.1,<2.2","psycopg2-binary","python-dotenv", "boto3", "requests"]
 
 [tool.pytest.ini_options]
