@@ -277,11 +277,9 @@ class SQLClient:
                 self.logger.debug(
                     f"Executing Stored Procedure {stored_procedure_name} {param_list}"
                 )
-                # if skip_transaction:
-                #     cursor.commit()
                 cursor.callproc(stored_procedure_name, param_list)
                 cursor.close()
-                # connection.commit()
+                connection.commit()
                 connection.close()
             except Exception as e:
                 self.logger.error(
