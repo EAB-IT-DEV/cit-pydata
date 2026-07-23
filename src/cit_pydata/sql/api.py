@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Generator
 
 from cit_pydata.util import api as util_api
 from cit_pydata.util import ON_AWS
@@ -37,6 +38,7 @@ class SQLClient:
         self.sql_instance = conn.get("sql_instance", None)
         self.sql_user = conn.get("sql_user", None)
         self.sql_database = conn.get("sql_database", None)
+        self.sql_port = conn.get("sql_port", None)
         self.dialect = conn.get("dialect", DEFAULT_DIALECT)
         self.execution_options = conn.get("execution_options", None)
         self.ssh_tunnel_host = conn.get("ssh_tunnel_host", None)
@@ -121,6 +123,8 @@ class SQLClient:
             # self.logger.debug(self.ssh_tunnel_host, self.ssh_tunnel_port)
             if self.ssh_tunnel_host and self.ssh_tunnel_port:
                 engine_connection_string = f"postgresql+psycopg2://{self.sql_user}:{quote(sql_password)}@{self.ssh_tunnel_host}:{self.ssh_tunnel_port}/{self.sql_database}"
+            elif self.sql_port:
+                engine_connection_string = f"postgresql+psycopg2://{self.sql_user}:{quote(sql_password)}@{self.sql_hostname}:{self.sql_port}/{self.sql_database}"
             else:
                 engine_connection_string = f"postgresql+psycopg2://{self.sql_user}:{quote(sql_password)}@{self.sql_hostname}/{self.sql_database}"
             sqlalchemy_engine = create_engine(
@@ -234,8 +238,6 @@ class SQLClient:
 
         return None
         
-    from typing import Generator
-
     def stream_dataframe_query(self, query: str, kwargs: dict) -> Generator[pd.DataFrame, None, None]:
         """Returns Pandas DataFrame Iterator from SQL Query
         Arguments:
@@ -396,9 +398,10 @@ class SQLClient:
                 self.logger.info(f'Executing SQL "{statement_type}"')
             try:
                 with Session(self.sql_engine) as session:
-                    session.execute(sql_statement)
+                    session.execute(text(sql_statement))
                     session.commit()
             except Exception as e:
+                self.logger.error(f"Failed to execute SQL {str(e)}")
                 return False
 
         elif self.dialect == "pyodbc":
@@ -416,9 +419,8 @@ class SQLClient:
         elif self.dialect == "psycopg2":
             self.logger.info(f"Executing SQL '{sql_statement}'")
             try:
-                self.sql_engine.execute(
-                    text(sql_statement).execution_options(autocommit=True)
-                )
+                with self.sql_engine.begin() as connection:
+                    connection.execute(text(sql_statement))
             except Exception as e:
                 self.logger.error(f"Failed to execute SQL {str(e)}")
                 return False
@@ -573,11 +575,13 @@ class SQLClient:
         else:
             target_table = Table(table_name, metadata, autoload=True)
 
+        if upsert_kwargs is None:
+            upsert_kwargs = {}
         upsert_id_index_elements = upsert_kwargs.get("upsert_id_index_elements", None)
 
         # exlude these columns from update on insert conflict
         exclude_columns_on_conflict_update = upsert_kwargs.get(
-            "exclude_columns_on_conflict_update", None
+            "exclude_columns_on_conflict_update", []
         )
 
         # build insert statement
@@ -642,6 +646,8 @@ class SQLClient:
         else:
             target_table = Table(table_name, metadata, autoload=True)
 
+        if upsert_kwargs is None:
+            upsert_kwargs = {}
         upsert_id_index_elements = upsert_kwargs.get("upsert_id_index_elements", None)
 
         # exlude these columns from update on insert conflict
@@ -740,7 +746,7 @@ class SQLClient:
 
         if self.dialect != "psycopg2":
             self.logger.error(f"unsupported dialect for upsert {self.dialect}")
-        dbapi_conn = self._get_sql_engine.connect()
+        dbapi_conn = self.sql_engine.raw_connection()
         with dbapi_conn.cursor() as cur:
             s_buf = StringIO()
             sql = "COPY ({0}) TO STDOUT WITH CSV HEADER".format(table_name)
@@ -932,7 +938,7 @@ class SQLClient:
                 self.logger.info(f'Executing SQL "{statement_type}"')
             try:
                 with Session(self.sql_engine) as session:
-                    cursor = session.execute(sql_statement)
+                    cursor = session.execute(text(sql_statement))
                     slept = 0
                     while cursor.nextset():
                         if slept >= timeout:
