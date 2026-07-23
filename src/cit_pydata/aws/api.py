@@ -13,7 +13,7 @@ def _get_boto_session(
     iam_user: str = None,
     path_to_env_file: str = None,
     region: str = None,
-    logger=util_api.get_logger(__name__, "info")
+    logger=None,
 ):
     if logger is None:
         logger = util_api.get_logger(__name__, "info")
@@ -91,9 +91,9 @@ class S3Client:
             logger=self.logger,
         )
         if self.session is None:
-            self.logger.error("Failed to initialize boto3 session")
-            self.client = None
-            return
+            raise RuntimeError(
+                "Failed to initialize boto3 session (check AWS credentials / environment)"
+            )
         self.client = self.session.client("s3")
 
     def get_object_metadata(self, **kwargs):
@@ -121,9 +121,9 @@ class S3Client:
 
             next_page_token = response.get("NextContinuationToken", None)
             # self.logger.debug(next_page_token)
-            for object_item in response["Contents"]:
+            for object_item in response.get("Contents", []):
                 object_list.append(object_item)
-            response.pop("Contents")
+            response.pop("Contents", None)
 
         df_s3_objects = pandas.DataFrame(object_list)
         # self.logger.debug(response)
@@ -165,9 +165,9 @@ class SSMClient:
             logger=self.logger,
         )
         if self.session is None:
-            self.logger.error("Failed to initialize boto3 session")
-            self.client = None
-            return
+            raise RuntimeError(
+                "Failed to initialize boto3 session (check AWS credentials / environment)"
+            )
         self.client = self.session.client("ssm")
 
     def get_parameter(
@@ -206,15 +206,21 @@ class SSMClient:
         },
         """
         max_results = 50
-        describe_param_dict: dict = self.client.describe_parameters(
-            ParameterFilters=filter_parameters, MaxResults=max_results
-        )
-
-        param_list = describe_param_dict.get("Parameters", None)
-        # return_list = []
-        # for parameter in param_list
-        #     param_keys_to_return_list = ['Name']
-        #     param_dict = parameter.get()
-        #     return_list.append()
+        param_list = []
+        next_token = None
+        while True:
+            describe_kwargs = {
+                "ParameterFilters": filter_parameters,
+                "MaxResults": max_results,
+            }
+            if next_token:
+                describe_kwargs["NextToken"] = next_token
+            describe_param_dict: dict = self.client.describe_parameters(
+                **describe_kwargs
+            )
+            param_list.extend(describe_param_dict.get("Parameters", []))
+            next_token = describe_param_dict.get("NextToken", None)
+            if not next_token:
+                break
 
         return param_list

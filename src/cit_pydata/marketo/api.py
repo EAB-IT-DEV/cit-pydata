@@ -21,10 +21,14 @@ class MarketoClient:
 
         # Handle connection details
         self.instance = conn.get("instance", None)
-        assert self.instance in ["production", "sandbox"]
+        if self.instance not in ["production", "sandbox"]:
+            raise ValueError(
+                f"conn['instance'] must be 'production' or 'sandbox'; got '{self.instance}'"
+            )
 
         self.app = conn.get("app", None)
-        assert self.app is not None
+        if self.app is None:
+            raise ValueError("conn['app'] is required")
 
         self.aws_environment = util_api.get_environment_variable(
             logger=self.logger, variable_name="aws_auth_environment"
@@ -57,6 +61,7 @@ class MarketoClient:
                 )
             except Exception as e:
                 self.logger.exception(e)
+                raise
 
             marketo_munchkin_id_parameter_name = (
                 self.base_ssm_parameter_name + self.instance + "/munchkin_id"
@@ -171,7 +176,6 @@ class MarketoClient:
 
         self._authenticate()
         self.marketo.authenticate()
-        self.logger.debug(self.marketo.token)
         auth_header = f"Bearer {self.marketo.token}"
         headers = {"Content-Type": "application/json", "Authorization": auth_header}
         url = self.marketo.host + "/rest/v1/leads/submitForm.json"
@@ -179,7 +183,12 @@ class MarketoClient:
         self.logger.debug(form_payload)
         request = requests.post(url=url, headers=headers, json=form_payload)
         self.logger.debug(request.status_code)
-        self.logger.debug(request.text)
+        try:
+            request.raise_for_status()
+        except Exception as e:
+            self.logger.error(f"Failed to submit Marketo form: {str(e)}")
+            return None
+        return request.json()
 
     def get_program(self, program_id):
         import json
@@ -187,7 +196,7 @@ class MarketoClient:
         self._authenticate()
 
         try:
-            lead = self.client.execute(method="get_program_by_id", id=program_id)
+            lead = self.marketo.execute(method="get_program_by_id", id=program_id)
         except KeyError:
             lead = False
 
@@ -218,15 +227,17 @@ class MarketoClient:
                 json.dump(item, json_file)
 
     def get_custom_object_records(
-        self, custom_object_name, filter_type, filter_list, custom_field_list=[]
+        self, custom_object_name, filter_type, filter_list, custom_field_list=None
     ):
         """
         Returns DataFrame of Custom Object records based on filter criteria
         """
         import pandas as pd
 
+        if custom_field_list is None:
+            custom_field_list = []
         batch_size = 300
-        field_list = self.CUSTOM_OBJECT_STANDARD_FIELDS
+        field_list = list(self.CUSTOM_OBJECT_STANDARD_FIELDS)
         for field in custom_field_list:
             field_list.append(field)
 
@@ -254,7 +265,7 @@ class MarketoClient:
             if len(batch_result) > 0:
                 batch_df = pd.DataFrame(batch_result)
                 batch_df = batch_df.drop(columns="seq")
-                df = df.append(batch_df)
+                df = pd.concat([df, batch_df], ignore_index=True)
 
         # pd.set_option('display.max_columns', None)
         # column_list = result[0].keys()
@@ -282,7 +293,7 @@ class MarketoClient:
 
         query = upsert_co_query_dict.get(custom_object_name, None)
         if query is None or query == "":
-            self.logger.errror(f"Custom Object not supported {custom_object_name}")
+            self.logger.error(f"Custom Object not supported {custom_object_name}")
             return
 
         self.logger.info(f"Executing SQL Query: {query}")
@@ -372,7 +383,7 @@ class MarketoClient:
             if len(batch_result) > 0:
                 batch_df = pd.DataFrame(batch_result)
                 batch_df = batch_df.drop(columns="seq")
-                df = df.append(batch_df)
+                df = pd.concat([df, batch_df], ignore_index=True)
 
         # log result of deletion
         if log_path is not None:
@@ -552,17 +563,19 @@ class MarketoClient:
             # collect all records to delete
             if co_records_delete_df.empty is True:
                 co_records_delete_df = to_delete_df
-            elif co_records_delete_df.empty is False:
-                co_records_delete_df = co_records_delete_df.append(to_delete_df)
             else:
-                self.logger.info(f"No Custom Object records found to be deleted")
-                return None
+                co_records_delete_df = pd.concat(
+                    [co_records_delete_df, to_delete_df], ignore_index=True
+                )
 
             self.logger.info(f"CO records to delete head: {to_delete_df.head()}")
             self.logger.info(f"CO records to delete size: {to_delete_df.size}")
 
             delete_by = "dedupeFields"
-            records_to_delete_list = df.to_dict("records")
+            records_to_delete_list = co_records_delete_df.to_dict("records")
+            if not records_to_delete_list:
+                self.logger.info("No Custom Object records to delete")
+                return None
             self._delete_co_df(
                 custom_object_name,
                 filter_list=records_to_delete_list,

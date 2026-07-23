@@ -205,16 +205,16 @@ def get_logger(
 
         logger = logging.getLogger(logger_name)
 
-        # Set handlers if none set from root logger
-        if logger.hasHandlers() == False:
+        # Set handlers only if this logger has none of its own.
+        # (logger.hasHandlers() also counts ancestor/root handlers, which would
+        # cause the file handler to be silently skipped under pytest/Lambda/etc.)
+        if not logger.handlers:
             logger.setLevel(logging.DEBUG)
             stream_handler = logging.StreamHandler()
 
-            # Log Level Switch
-            if log_level.upper() == "DEBUG":
-                stream_handler.setLevel(logging.DEBUG)
-            else:
-                stream_handler.setLevel(logging.INFO)
+            # Log Level Switch - honors DEBUG/INFO/WARNING/ERROR, defaults INFO
+            _level = getattr(logging, str(log_level).upper(), logging.INFO)
+            stream_handler.setLevel(_level)
 
             # Add Formater
             console_formatter = logging.Formatter(
@@ -259,10 +259,7 @@ def get_logger(
                 file_handler = logging.FileHandler(log_file_path)
                 file_handler.setFormatter(file_formatter)
 
-                if log_level == "debug":
-                    file_handler.setLevel(logging.DEBUG)
-                else:
-                    file_handler.setLevel(logging.INFO)
+                file_handler.setLevel(_level)
 
                 logger.addHandler(file_handler)
 
@@ -273,7 +270,9 @@ def get_logger(
                     and type(cleanup_policy) == dict
                     and "retain_last_n" in cleanup_policy.keys()
                 ):
-                    log_file_regex = re.compile(f"^{base_file_name}.*\.log$")
+                    log_file_regex = re.compile(
+                        rf"^{re.escape(base_file_name)}_.*\.log$"
+                    )
                     # try catch to prevent failure from affecting actual job
                     try:
                         num_files_removed = cleanup_logs(
@@ -306,7 +305,7 @@ def cleanup_logs(
     log_path: str,
     log_file_regex: str,
     retain_last_n: dict,
-    time_now=datetime.datetime.now(),
+    time_now=None,
 ) -> int:
     """
     Cleans up specified directory of files that match the regex and has a last modified date
@@ -332,6 +331,9 @@ def cleanup_logs(
     import re
 
     remove_counter = 0
+
+    if time_now is None:
+        time_now = datetime.datetime.now()
 
     # determine cutoff_time
     cutoff_time = time_now - datetime.timedelta(**retain_last_n)
@@ -365,6 +367,8 @@ def get_log_level(path_to_env=PATH_TO_ENV):
         )
     elif ON_AWS:
         _log_level = os.getenv("POWERTOOLS_LOG_LEVEL", _log_level)
+    if not _log_level:
+        _log_level = "INFO"
     return _log_level
 
 
@@ -382,7 +386,7 @@ def find_text_in_files(root_path, text_regex):
         # skip pycache folders
         if not re.search("__pycache__", dirpath):
             for this_file in filenames:
-                if re.search(".*\.py", this_file):
+                if re.search(r".*\.py", this_file):
                     this_file_path = os.path.join(dirpath, this_file)
                     file_list.append(this_file_path)
         # self.logger.debug(dirnames)

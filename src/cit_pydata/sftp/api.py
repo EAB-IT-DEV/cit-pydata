@@ -19,10 +19,12 @@ class SFTPClient:
 
         # Handle connection details
         self.instance = conn.get("instance", None)
-        assert self.instance is not None
+        if self.instance is None:
+            raise ValueError("conn['instance'] is required")
 
         self.port = conn.get("port", None)
-        assert self.port is not None
+        if self.port is None:
+            raise ValueError("conn['port'] is required")
 
         self.aws_environment = util_api.get_environment_variable(
             logger=self.logger, variable_name="aws_auth_environment"
@@ -94,9 +96,11 @@ class SFTPClient:
             )
             return False
 
-        assert sftp_password is not None
-        assert sftp_username is not None
-        assert sftp_hostname is not None
+        if sftp_password is None or sftp_username is None or sftp_hostname is None:
+            self.logger.error(
+                f"Missing SFTP credential(s) from SSM for instance '{self.instance}'"
+            )
+            return False
 
         # Initialize instance of the SHHClient
         self.sftp_client = paramiko.SSHClient()
@@ -221,6 +225,7 @@ class SFTPClient:
                     self.logger.info(
                         f'File {source_file_name} overwritten in {os.path.join(target_folder_path, target_file_name).replace(os.sep, "/")}'
                     )
+                    return True
                 else:
                     # Archive the existing file
                     archive_suffix = archive_suffix or datetime.now().strftime("%Y%m%d")
@@ -384,11 +389,12 @@ class SFTPClient:
                 self._close_connection()
 
     def move_file_on_sftp(
-        self, source_folder_path, source_file_name, target_folder_path
+        self, source_folder_path, source_file_name, target_folder_path, auto_close=True
     ):
         """Move a single file from the source folder on the SFTP server
         to the target folder on the SFTP server.
         Returns True if the file move is successful, False otherwise.
+        Default behavior is to automatically close the connection after the move.
         """
         if self.sftp_session is None:
             connected = self._connect()
@@ -441,6 +447,9 @@ class SFTPClient:
         except Exception as error:
             self.logger.error(f"Error moving file on SFTP: {error}")
             return False
+        finally:
+            if auto_close:
+                self._close_connection()
 
     def _close_connection(self):
         # Close the SFTP session

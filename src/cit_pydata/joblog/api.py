@@ -47,16 +47,20 @@ class JobLogClient:
         param_list = [self.log_guid, message, None]
         self.sql_client.execute_stored_procedure("usp_Update_JobLog", param_list)
 
+    @staticmethod
     def update_joblog(sql_client, method, guid, status, logger=None):
         # If no sql_client supplied quietly ignore
         if sql_client:
-            assert method in ["Success", "Failure", "Status"]
+            if method not in ["Success", "Failure", "Status"]:
+                raise ValueError(
+                    f"method must be 'Success', 'Failure', or 'Status'; got '{method}'"
+                )
 
             if method in ["Success", "Failure"]:
                 result = method
                 param_list = [guid, status, result]
             elif method == "Status":
-                param_list = [guid, status]
+                param_list = [guid, status, None]
 
             stored_procedure_name = "usp_Update_JobLog"
             sql_client.execute_stored_procedure(stored_procedure_name, param_list)

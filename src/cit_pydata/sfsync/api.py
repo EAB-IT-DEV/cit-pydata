@@ -10,10 +10,9 @@ class SFSyncClient:
         self.sql_client = sql_client
 
         if self.sql_client.dialect != "pyodbc":
-            self.logger.error(
+            raise ValueError(
                 f"SQL Client dialect {self.sql_client.dialect} not supported for SFSync. Use pyodbc instead"
             )
-            return
 
     def get_object(self, object_api_name, integration_name=None, retrieval_type=None):
         _stored_procedure = "usp_GetSalesforce_Object"

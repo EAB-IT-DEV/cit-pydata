@@ -9,8 +9,10 @@ DEFAULT_API_VERSION = "59.0"
 
 
 def get_field_value_from_relationship_lookup(lookup_dict, field_api_name):
-    assert isinstance(lookup_dict, dict)
-    assert field_api_name
+    if not isinstance(lookup_dict, dict):
+        raise TypeError("lookup_dict must be a dict")
+    if not field_api_name:
+        raise ValueError("field_api_name is required")
     return lookup_dict[field_api_name]
 
 
@@ -31,14 +33,17 @@ class SalesforceClient:
 
         # Handle connection details
         self.instance = conn.get("instance", None)
-        assert self.instance is not None
+        if self.instance is None:
+            raise ValueError("conn['instance'] is required")
 
         self.is_sandbox = True if self.instance != "prod" else False
         self.user = conn.get("user", None)
         self.app = conn.get("app", None)
 
-        assert self.user is not None
-        assert self.app is not None
+        if self.user is None:
+            raise ValueError("conn['user'] is required")
+        if self.app is None:
+            raise ValueError("conn['app'] is required")
 
         self.aws_environment = util_api.get_environment_variable(
             logger=self.logger, variable_name="aws_auth_environment"
@@ -79,6 +84,7 @@ class SalesforceClient:
                 )
             except Exception as e:
                 self.logger.exception(e)
+                raise
 
             sf_username_parameter_name = (
                 self.base_ssm_parameter_name
@@ -165,6 +171,22 @@ class SalesforceClient:
             if not sf_security_token:
                 sf_security_token = ""
 
+            missing = [
+                name
+                for name, value in (
+                    ("username", sf_username),
+                    ("password", sf_password),
+                    ("client_id", sf_client_id),
+                    ("client_secret", sf_client_secret),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(
+                    f"Missing Salesforce credential(s) from SSM for instance "
+                    f"'{self.instance}' user '{self.user}': {', '.join(missing)}"
+                )
+
             # Create payload for retrieving OAuth access token
             payload = {
                 "grant_type": "password",
@@ -180,7 +202,8 @@ class SalesforceClient:
                 if self.instance == "prod":
                     r = session.post(
                         "https://login.salesforce.com/services/oauth2/token",
-                        params=payload,
+                        data=payload,
+                        headers=headers,
                     )
                 else:
                     r = session.post(
@@ -194,8 +217,7 @@ class SalesforceClient:
                 except Exception as e:
                     self.logger.error(e)
                     self.logger.error(r.json())
-                    self.logger.error(f"Failed to authenticate to Salesforce")
-                    sys.exit(1)
+                    raise RuntimeError("Failed to authenticate to Salesforce") from e
                 json_response = r.json()
             # self.logger.debug(json_response)
 
@@ -269,11 +291,12 @@ class SalesforceClient:
         self._get_simple_sf()
 
         sf_object_result = {}
-        if hasattr(self.sf, object_api_name):
+        if hasattr(self.ssf, object_api_name):
             ssf_object = getattr(self.ssf, object_api_name)
         else:
-            self.logger.debug(f"Error: object does not exist {object_api_name}")
-            sys.exit(1)
+            raise AttributeError(
+                f"Salesforce object does not exist: {object_api_name}"
+            )
 
         sf_object_result = ssf_object.get(record_id)
 
@@ -330,12 +353,12 @@ class SalesforceClient:
         from collections import OrderedDict
         import json
 
-        self._authenticate()
+        self._get_simple_sf()
 
         if is_refresh_from_sf == True:
             # Get All Salesforce Object Metadata
             sf_dict = OrderedDict()
-            sf_dict = self.sf.describe()
+            sf_dict = self.ssf.describe()
 
             with open("all_objects.json", "w") as f:
                 f.write(json.dumps(sf_dict))
@@ -548,14 +571,17 @@ class SalesforceSOAPClient:
 
         # Handle connection details
         self.instance = conn.get("instance", None)
-        assert self.instance is not None
+        if self.instance is None:
+            raise ValueError("conn['instance'] is required")
 
         self.is_sandbox = True if self.instance != "prod" else False
         self.user = conn.get("user", None)
         self.app = conn.get("app", None)
 
-        assert self.user is not None
-        assert self.app is not None
+        if self.user is None:
+            raise ValueError("conn['user'] is required")
+        if self.app is None:
+            raise ValueError("conn['app'] is required")
 
         self.aws_environment = util_api.get_environment_variable(
             logger=self.logger, variable_name="aws_auth_environment"
@@ -596,6 +622,7 @@ class SalesforceSOAPClient:
                 )
             except Exception as e:
                 self.logger.exception(e)
+                raise
 
             sf_username_parameter_name = (
                 self.base_ssm_parameter_name

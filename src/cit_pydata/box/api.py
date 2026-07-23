@@ -14,15 +14,17 @@ class BoxClient:
         self.client = None
 
     def _get_client(self):
-        from boxsdk import Client, JWTAuth, OAuth2
+        from boxsdk import Client, JWTAuth
+        from boxsdk.exception import BoxAPIException
 
         # JWT Auth
         auth = JWTAuth.from_settings_file(self.box_jwt_auth_file_path)
 
         try:
             self.client = Client(auth)
-        except Client.BoxAPIException as err:
-            self.logger.error("Failed to Authenticate to Box API:", err)
+        except BoxAPIException as err:
+            self.logger.error(f"Failed to Authenticate to Box API: {err}")
+            raise
 
     def get_folder(self, folder_id: str):
         if not self.client:
@@ -31,7 +33,7 @@ class BoxClient:
         return self.client.folder(folder_id=folder_id)
 
     def get_file(self):
-        pass
+        raise NotImplementedError
 
     def get_folder_items(self, folder_id: str, filter_type: str = None):
         if not self.client:

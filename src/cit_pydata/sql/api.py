@@ -44,10 +44,16 @@ class SQLClient:
         self.ssh_tunnel_host = conn.get("ssh_tunnel_host", None)
         self.ssh_tunnel_port = conn.get("ssh_tunnel_port", None)
 
-        assert self.sql_hostname is not None
-        assert self.sql_user is not None
-        assert self.sql_database is not None
-        assert self.dialect in SUPPORTED_DIALECTS
+        if self.sql_hostname is None:
+            raise ValueError("sql_hostname is required")
+        if self.sql_user is None:
+            raise ValueError("sql_user is required")
+        if self.sql_database is None:
+            raise ValueError("sql_database is required")
+        if self.dialect not in SUPPORTED_DIALECTS:
+            raise ValueError(
+                f"dialect must be one of {SUPPORTED_DIALECTS}; got '{self.dialect}'"
+            )
 
         self.sql_engine = self._get_sql_engine()
 
@@ -566,7 +572,8 @@ class SQLClient:
         if self.dialect != "psycopg2":
             self.logger.error(f"unsupported dialect for upsert {self.dialect}")
 
-        assert type(df) == pd.DataFrame
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("df must be a pandas DataFrame")
         metadata = MetaData(bind=self.sql_engine)
         if table_schema:
             target_table = Table(
@@ -637,7 +644,8 @@ class SQLClient:
         if self.dialect != "psycopg2":
             self.logger.error(f"unsupported dialect for upsert {self.dialect}")
 
-        assert type(df) == pd.DataFrame
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("df must be a pandas DataFrame")
         metadata = MetaData(bind=self.sql_engine)
         if table_schema:
             target_table = Table(
@@ -770,7 +778,8 @@ class SQLClient:
         on_conflict = on_conflict.replace("_", " ").upper()
         if self.dialect != "psycopg2":
             self.logger.error(f"unsupported dialect for upsert {self.dialect}")
-        assert type(df) == pd.DataFrame
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("df must be a pandas DataFrame")
         if on_conflict.upper() not in ("DO NOTHING", "DO UPDATE"):
             raise ValueError("on_conflict must be: 'DO NOTHING' or 'DO UPDATE'")
         if df.empty:
